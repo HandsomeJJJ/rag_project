@@ -156,9 +156,27 @@ def _render_sidebar_history(active_session_id: str, session_ids: list[str]) -> N
 import markdown
 from markupsafe import escape
 
+USER_AVATAR = (
+    '<svg class="avatar" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">'
+    '<circle cx="18" cy="18" r="18" fill="#2563eb"/>'
+    '<circle cx="18" cy="14" r="6" fill="#fff"/>'
+    '<path d="M6 32c0-6.627 5.373-12 12-12s12 5.373 12 12" fill="#fff"/>'
+    '</svg>'
+)
+
+ASSISTANT_AVATAR = (
+    '<svg class="avatar" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">'
+    '<circle cx="18" cy="18" r="18" fill="#10b981"/>'
+    '<rect x="9" y="10" width="18" height="14" rx="3" fill="#fff"/>'
+    '<circle cx="14" cy="17" r="2" fill="#10b981"/>'
+    '<circle cx="22" cy="17" r="2" fill="#10b981"/>'
+    '<rect x="13" y="22" width="10" height="2" rx="1" fill="#10b981"/>'
+    '<rect x="6" y="14" width="3" height="6" rx="1.5" fill="#10b981"/>'
+    '<rect x="27" y="14" width="3" height="6" rx="1.5" fill="#10b981"/>'
+    '</svg>'
+)
+
 def render_bubble(role: str, content: str) -> None:
-    # safe_content = escape(content).replace("\n", "<br>") # Removed to support markdown
-    # Convert markdown to HTML while explicitly allowing tables, code blocks, lists
     md_html = markdown.markdown(
         content,
         extensions=[
@@ -168,17 +186,26 @@ def render_bubble(role: str, content: str) -> None:
             "sane_lists"
         ]
     )
-    
+
     cls = "bubble-user" if role == "user" else "bubble-assistant"
     align = "row-user" if role == "user" else "row-assistant"
-    st.markdown(
-        (
-            f'<div class="chat-row {align}">' 
+    avatar = USER_AVATAR if role == "user" else ASSISTANT_AVATAR
+
+    if role == "user":
+        html = (
+            f'<div class="chat-row {align}">'
+            f'<div class="chat-bubble {cls}">{md_html}</div>'
+            f'{avatar}'
+            "</div>"
+        )
+    else:
+        html = (
+            f'<div class="chat-row {align}">'
+            f'{avatar}'
             f'<div class="chat-bubble {cls}">{md_html}</div>'
             "</div>"
-        ),
-        unsafe_allow_html=True,
-    )
+        )
+    st.markdown(html, unsafe_allow_html=True)
 
 
 st.set_page_config(page_title="智能法律问答系统", page_icon="⚖️", layout="centered")
@@ -477,10 +504,15 @@ st.markdown(
     }
     
     /* 【聊天气泡】设计 */
-    .chat-row { display: flex; margin: 1.2rem 0; width: 100%; }
+    .chat-row { display: flex; align-items: flex-start; margin: 1.2rem 0; width: 100%; gap: 0.6rem; }
     .row-user { justify-content: flex-end; }
     .row-assistant { justify-content: flex-start; }
-    
+
+    .avatar {
+        width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+
     .chat-bubble {
         max-width: 80%;
         padding: 0.8rem 1.2rem;
@@ -516,7 +548,7 @@ st.markdown(
         border-radius: 16px;
         border-bottom-left-radius: 4px;
         padding: 0.8rem 1.2rem;
-        margin: 0.6rem 0;
+        max-width: 80%;
         color: #1e293b !important;
         font-size: 1rem;
         line-height: 1.6;
@@ -661,6 +693,32 @@ st.markdown(
         border-radius: 10px !important;
         font-weight: 600 !important;
     }
+        /* =========================================
+       【终极修复】强制助手气泡内的所有文字全为深靛蓝
+       （彻底解决深色模式下自动变白字导致看不清的问题）
+       ========================================= */
+    .bubble-assistant h1,
+    .bubble-assistant h2,
+    .bubble-assistant h3,
+    .bubble-assistant h4,
+    .bubble-assistant h5,
+    .bubble-assistant h6,
+    .bubble-assistant strong,
+    .bubble-assistant b,
+    .bubble-assistant em,
+    .bubble-assistant p,
+    .bubble-assistant li,
+    .bubble-assistant span,
+    .bubble-assistant div {
+        color: #1e293b !important;
+    }
+    
+    /* 让加粗的字体稍微带一点点深蓝，增加层次感 */
+    .bubble-assistant strong,
+    .bubble-assistant b {
+        color: #0f172a !important;
+        font-weight: 700 !important;
+    }
 </style>
 """,
     unsafe_allow_html=True,
@@ -709,8 +767,9 @@ if prompt:
 
     # 思考中指示器（正方形 + 旋转圆圈）
     st.markdown(
-        """
-        <div class="thinking-indicator-wrap" id="thinking-indicator">
+        f"""
+        <div class="chat-row row-assistant" id="thinking-indicator">
+            {ASSISTANT_AVATAR}
             <div class="thinking-indicator">
                 <div class="thinking-icon">
                     <div class="thinking-square"></div>
@@ -783,7 +842,10 @@ if prompt:
     for chunk in stream:
         collected.append(chunk)
         placeholder.markdown(
-            f'<div class="stream-output">{escape("".join(collected))}</div>',
+            f'<div class="chat-row row-assistant">'
+            f'{ASSISTANT_AVATAR}'
+            f'<div class="stream-output">{escape("".join(collected))}</div>'
+            f'</div>',
             unsafe_allow_html=True,
         )
 
