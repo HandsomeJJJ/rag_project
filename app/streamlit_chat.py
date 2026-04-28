@@ -102,30 +102,49 @@ def _consume_query_action() -> None:
 
 def _render_sidebar_history(active_session_id: str, session_ids: list[str]) -> None:
     rows: list[str] = []
-    for sid in session_ids:
+    for idx, sid in enumerate(session_ids):
         label = escape(session_label(sid))
-        active_cls = "session-item active" if sid == active_session_id else "session-item"
+        is_active = sid == active_session_id
+        active_cls = "session-item active" if is_active else "session-item"
         pin_text = "取消置顶" if is_session_pinned(sid) else "置顶"
-        pin_mark = "📌 " if is_session_pinned(sid) else ""
+        pin_icon = "📌" if is_session_pinned(sid) else ""
+        pin_mark = f'<span class="pin-icon">{pin_icon}</span> ' if pin_icon else ""
+        active_dot = '<span class="active-dot"></span>' if is_active else ""
         rows.append(
             (
-                f'<div class="{active_cls}">'
-                f'<a class="session-link" href="?action=open&sid={sid}" target="_self">{pin_mark}{label}</a>'
-                '<details class="session-menu">'
-                '<summary>&#8942;</summary>'
-                '<div class="menu-panel">'
-                f'<a href="?action=pin&sid={sid}" target="_self">{pin_text}</a>'
-                f'<a class="danger" href="?action=delete&sid={sid}" target="_self">删除</a>'
+                f'<div class="{active_cls}" style="animation-delay: {idx * 0.03}s">'
+                f'{active_dot}'
+                f'<a class="session-link" href="?action=open&sid={sid}" target="_self">'
+                f'{pin_mark}<span class="session-text">{label}</span></a>'
+                '<div class="session-actions">'
+                f'<a class="action-btn pin-btn" href="?action=pin&sid={sid}" target="_self" title="{pin_text}">'
+                f'{"&#128204;" if is_session_pinned(sid) else "&#128204;"}</a>'
+                f'<a class="action-btn del-btn" href="?action=delete&sid={sid}" target="_self" title="删除">'
+                '&#128465;</a>'
                 "</div>"
-                "</details>"
                 "</div>"
             )
         )
 
+    session_count = len(session_ids)
     html = (
         '<div class="history-shell">'
-        '<a class="new-chat-btn" href="?action=new" target="_self">⊕ 新建会话</a>'
-        '<div class="history-header">🕘 历史会话</div>'
+        '<div class="sidebar-brand">'
+        '<span class="brand-icon">&#9878;&#65039;</span>'
+        '<div class="brand-text">'
+        '<div class="brand-title">智能法律问答系统</div>'
+        '<div class="brand-sub">劳动法问答助手</div>'
+        '</div>'
+        '</div>'
+        '<a class="new-chat-btn" href="?action=new" target="_self">'
+        '<span class="btn-icon">+</span>'
+        '<span>新建会话</span>'
+        '</a>'
+        '<div class="history-header">'
+        '<span class="header-icon">&#128337;</span>'
+        '<span>历史会话</span>'
+        f'<span class="session-count">{session_count}</span>'
+        '</div>'
         '<div class="history-list">'
         + "".join(rows)
         + "</div>"
@@ -167,237 +186,485 @@ st.set_page_config(page_title="智能法律问答系统", page_icon="⚖️", la
 st.markdown(
     """
 <style>
+    /* 【核心】强制锁定全局背景为纯白，文字为深色 */
+    .stApp, [data-testid="stAppViewContainer"], [data-testid="stApp"] {
+        background-color: #ffffff !important;
+        color: #1e293b !important;
+    }
+
+    /* 【顶部空白】消除主内容区顶部间距 */
+    [data-testid="stMain"] {
+        padding-top: 0 !important;
+    }
+    [data-testid="stMain"] .block-container {
+        padding-top: 1rem !important;
+    }
+
+    /* 【标题】强制标题颜色为深蓝色，防止在深色模式下变成白色看不见 */
+    h1, h2, h3, [data-testid="stMarkdownContainer"] h1 {
+        color: #1e3a8a !important;
+        font-weight: 700 !important;
+    }
+
+    /* 【顶部】彻底白底化顶部导航栏 */
+    [data-testid="stHeader"] {
+        background-color: #ffffff !important;
+        border-bottom: 1px solid #f1f5f9;
+        height: 0 !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        overflow: hidden !important;
+    }
+
+    /* 【底部】彻底歼灭底部所有黑色区域 (解决左右黑边) */
+    [data-testid="stBottom"], 
+    [data-testid="stBottom"] > div,
+    [data-testid="stBottomBlockContainer"],
+    footer {
+        background-color: #ffffff !important;
+        background: #ffffff !important;
+    }
+
+    /* 【输入框】美化并锁定输入框颜色 */
+    [data-testid="stChatInput"] {
+        border: 1px solid #cbd5e1 !important;
+        background-color: #f8fafc !important;
+        border-radius: 12px !important;
+    }
+    [data-testid="stChatInput"] textarea {
+        color: #1e293b !important;
+    }
+
+     /* 【侧边栏】清爽浅蓝灰风格 */
     [data-testid="stSidebar"] {
-        background: #f0f4f9;
-        border-right: none;
+        background-color: #f8fafc !important;
+        border-right: 1px solid #e2e8f0 !important;
     }
+    /* 1. 强制隐藏 Streamlit 原生的侧边栏占位头部 */
+    [data-testid="stSidebarHeader"] {
+        display: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        height: 0 !important;
+    }
+    /* 2. 将侧边栏内容区的顶部内边距清零 */
     [data-testid="stSidebar"] .block-container {
-        padding-top: 1.1rem;
-        padding-bottom: 0.8rem;
+        padding-top: 0.5rem !important; /* 留 0.5rem 防止贴得太死，如果想完全贴顶可以改成 0 */
     }
+
+    /* ===== 侧边栏历史记录美化 ===== */
     .history-shell {
-        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
+
+    /* 侧边栏顶部品牌/标题 */
+    .sidebar-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 4px 16px;
+        margin-bottom: 12px;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .brand-icon {
+        font-size: 1.6rem;
+        line-height: 1;
+    }
+    .brand-text {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+    .brand-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #1e293b;
+        letter-spacing: 0.3px;
+    }
+    .brand-sub {
+        font-size: 0.75rem;
+        color: #64748b;
+        font-weight: 400;
+    }
+
+    /* 新建会话按钮 */
     .new-chat-btn {
-        display: block;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        width: 100%;
+        padding: 10px 16px;
+        margin-bottom: 16px;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        color: #ffffff !important;
         text-decoration: none !important;
-        border: 1px solid #d4dae3;
-        color: #1f1f1f !important;
-        border-radius: 12px;
-        padding: 0.5rem 0.75rem;
+        border-radius: 10px;
+        font-size: 0.9rem;
         font-weight: 600;
-        background: #f9fafb;
-        margin-bottom: 1rem;
+        letter-spacing: 0.3px;
+        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+        transition: all 0.2s ease;
     }
     .new-chat-btn:hover {
-        border-color: #b9c4d4;
-        background: #ffffff;
+        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+        transform: translateY(-1px);
     }
+    .new-chat-btn:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+    }
+    .btn-icon {
+        font-size: 1.2rem;
+        font-weight: 700;
+        line-height: 1;
+    }
+
+    /* 历史会话标题 */
     .history-header {
-        font-size: 0.92rem;
-        color: #444746 !important;
-        margin-bottom: 0.55rem;
-        font-weight: 500;
-        padding-left: 0.2rem;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 4px 10px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        border-bottom: 1px solid #e2e8f0;
+        margin-bottom: 8px;
     }
+    .header-icon { font-size: 0.85rem; }
+    .session-count {
+        margin-left: auto;
+        background: #e2e8f0;
+        color: #64748b;
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 1px 7px;
+        border-radius: 10px;
+        min-width: 18px;
+        text-align: center;
+    }
+
+    /* 历史列表容器 */
     .history-list {
         display: flex;
         flex-direction: column;
-        gap: 0.15rem;
+        gap: 2px;
+        max-height: calc(100vh - 220px);
+        overflow-y: auto;
+        padding-right: 2px;
     }
+    .history-list::-webkit-scrollbar { width: 4px; }
+    .history-list::-webkit-scrollbar-track { background: transparent; }
+    .history-list::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+    }
+    .history-list::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    /* 会话列表项 */
     .session-item {
+        position: relative;
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        border-radius: 50px;
-        padding: 0;
-        margin-bottom: 0.15rem;
+        border-radius: 8px;
+        transition: all 0.15s ease;
+        animation: fadeSlideIn 0.25s ease both;
+    }
+    @keyframes fadeSlideIn {
+        from { opacity: 0; transform: translateX(-8px); }
+        to   { opacity: 1; transform: translateX(0); }
     }
     .session-item:hover {
-        background: #e1e5ea;
+        background-color: #eef2f7;
     }
     .session-item.active {
-        background: #d3e3fd;
+        background-color: #e0edff;
     }
-    .session-item.active .session-link {
-        color: #041e49 !important;
-        font-weight: 500;
+    .session-item.active::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 3px;
+        height: 60%;
+        background: #3b82f6;
+        border-radius: 0 3px 3px 0;
     }
+
+    /* 活跃指示点 */
+    .active-dot {
+        flex-shrink: 0;
+        width: 6px;
+        height: 6px;
+        background: #3b82f6;
+        border-radius: 50%;
+        margin-left: 8px;
+        box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+    }
+
+    /* 会话链接 */
     .session-link {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 9px 8px;
+        color: #334155 !important;
         text-decoration: none !important;
-        color: #444746 !important;
-        font-size: 0.9rem;
-        padding: 0.55rem 0.8rem;
-        border-radius: 50px;
+        font-size: 0.85rem;
+        line-height: 1.4;
         overflow: hidden;
         white-space: nowrap;
         text-overflow: ellipsis;
-        width: 84%;
-        display: inline-block;
+        border-radius: 8px;
+        transition: color 0.15s;
     }
-    .session-menu {
-        position: relative;
-        width: 1.8rem;
-        text-align: center;
-        opacity: 0;
-        transition: opacity 0.16s ease;
+    .session-item.active .session-link {
+        color: #1e40af !important;
+        font-weight: 600;
     }
-    .session-item:hover .session-menu,
-    .session-menu[open] {
-        opacity: 1;
-    }
-    .session-menu summary {
-        list-style: none;
-        cursor: pointer;
-        color: #444746 !important;
-        font-size: 1.2rem;
-        line-height: 1;
-        border-radius: 50%;
-        padding: 0.15rem;
-        margin-right: 0.4rem;
-        font-weight: bold;
-    }
-    .session-menu summary:hover {
-        background: rgba(31, 31, 31, 0.08);
-    }
-    .session-menu summary::-webkit-details-marker {
-        display: none;
-    }
-    .menu-panel {
-        position: absolute;
-        right: 0.1rem;
-        top: 1.55rem;
-        background: #ffffff;
-        border: 1px solid #e6e9ef;
-        border-radius: 10px;
-        box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
-        min-width: 6.3rem;
-        z-index: 1000;
+    .session-text {
         overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
     }
-    .menu-panel a {
-        display: block;
-        padding: 0.46rem 0.7rem;
-        text-decoration: none !important;
-        color: #1f1f1f !important;
-        font-size: 0.88rem;
+    .pin-icon {
+        flex-shrink: 0;
+        font-size: 0.75rem;
+        opacity: 0.7;
     }
-    .menu-panel a:hover {
-        background: #f3f4f6;
-    }
-    .menu-panel a.danger {
-        color: #dc2626;
-    }
-    .main .block-container {
-        padding-top: 1.2rem;
-        padding-bottom: 1.2rem;
-        max-width: 860px;
-        margin: 0 auto;
-    }
-    .chat-wrap {
-        padding: 0.3rem 0.2rem 0.6rem 0.2rem;
-    }
-    .chat-row {
+
+    /* 操作按钮组 (hover 显示) */
+    .session-actions {
         display: flex;
-        margin: 0.4rem 0;
-        width: 100%;
+        align-items: center;
+        gap: 2px;
+        margin-right: 6px;
+        opacity: 0;
+        transition: opacity 0.15s;
     }
-    .row-user {
-        justify-content: flex-end;
+    .session-item:hover .session-actions { opacity: 1; }
+    .action-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 26px;
+        height: 26px;
+        border-radius: 6px;
+        text-decoration: none !important;
+        font-size: 0.75rem;
+        transition: all 0.15s;
     }
-    .row-assistant {
-        justify-content: flex-start;
+    .pin-btn {
+        color: #64748b !important;
     }
+    .pin-btn:hover {
+        background: #dbeafe;
+        color: #2563eb !important;
+    }
+    .del-btn {
+        color: #94a3b8 !important;
+    }
+    .del-btn:hover {
+        background: #fee2e2;
+        color: #dc2626 !important;
+    }
+    
+    /* 【聊天气泡】设计 */
+    .chat-row { display: flex; margin: 1.2rem 0; width: 100%; }
+    .row-user { justify-content: flex-end; }
+    .row-assistant { justify-content: flex-start; }
+    
     .chat-bubble {
-        max-width: 72%;
-        border-radius: 14px;
-        padding: 0.65rem 0.85rem;
-        line-height: 1.55;
-        font-size: 0.96rem;
-        font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif;
-        word-break: break-word;
-        box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
+        max-width: 80%;
+        padding: 0.8rem 1.2rem;
+        border-radius: 16px;
+        font-size: 1rem;
+        line-height: 1.6;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     }
     .bubble-user {
-        background: linear-gradient(135deg, #f7f7f8 0%, #eceef1 100%);
-        color: #1f2937;
+        background-color: #2563eb; /* 亮蓝色 */
+        color: #ffffff !important;
         border-bottom-right-radius: 4px;
     }
     .bubble-assistant {
-        background: #ffffff;
-        color: #1f2937;
+        background-color: #f1f5f9; /* 浅灰色 */
+        color: #1e293b !important;
         border-bottom-left-radius: 4px;
+        border: 1px solid #e2e8f0;
     }
-    .chat-bubble p {
-        margin: 0 0 0.6rem 0;
+    /* 修正气泡内文字颜色 */
+    .chat-bubble p, .chat-bubble li { color: inherit !important; margin-bottom: 0; }
+
+    /* 隐藏 Streamlit 默认的装饰线和状态指示 */
+    [data-testid="stDecoration"] { display: none; }
+    [data-testid="stStatusWidget"] { display: none !important; }
+    .stSpinner { display: none !important; }
+    [data-testid="stToolbar"] { display: none !important; }
+
+    /* 流式输出区域样式 */
+    .stream-output {
+        background: #f1f5f9;
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        border-bottom-left-radius: 4px;
+        padding: 0.8rem 1.2rem;
+        margin: 0.6rem 0;
+        color: #1e293b !important;
+        font-size: 1rem;
+        line-height: 1.6;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
     }
-    .chat-bubble p:last-child {
-        margin-bottom: 0;
+    .stream-output * { color: #1e293b !important; }
+
+    /* ===== 停止按钮美化 ===== */
+    /* 隐藏顶部默认停止按钮 */
+    [data-testid="stHeader"] [kind="headerStopSequence"],
+    [data-testid="stHeader"] button[kind="headerStopSequence"],
+    [data-testid="stHeader"] [data-testid="stHeaderStopSequence"] {
+        display: none !important;
     }
-    .chat-bubble h1, .chat-bubble h2, .chat-bubble h3, .chat-bubble h4 {
-        margin: 0.4rem 0 0.6rem 0;
-        font-weight: 600;
-        line-height: 1.3;
-    }
-    .chat-bubble h1 { font-size: 1.15rem; }
-    .chat-bubble h2 { font-size: 1.1rem; }
-    .chat-bubble h3 { font-size: 1.05rem; }
-    .chat-bubble ul, .chat-bubble ol {
-        margin: 0 0 0.6rem 0;
-        padding-left: 1.5rem;
-    }
-    .chat-bubble pre {
-        background: #f1f3f4;
-        padding: 0.6rem;
-        border-radius: 6px;
-        overflow-x: auto;
-        margin: 0 0 0.6rem 0;
-    }
-    .chat-bubble code {
-        font-family: Consolas, Monaco, "Andale Mono", monospace;
-        background: rgba(0, 0, 0, 0.05);
-        padding: 0.1rem 0.3rem;
-        border-radius: 4px;
-        font-size: 0.85em;
-    }
-    .chat-bubble pre code {
+
+    /* 自定义停止按钮 - 融入输入框区域 */
+    .custom-stop-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        width: 38px;
+        height: 38px;
         padding: 0;
-        background: transparent;
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 12px !important;
+        font-size: 0.8rem !important;
+        font-weight: 600 !important;
+        cursor: pointer;
+        box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+        transition: all 0.2s ease;
+        position: relative;
     }
-    .chat-bubble blockquote {
-        margin: 0 0 0.6rem 0;
-        padding-left: 1rem;
-        border-left: 3px solid #ccc;
-        color: #666;
+    .custom-stop-btn:hover {
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+        box-shadow: 0 4px 14px rgba(239, 68, 68, 0.4);
+        transform: translateY(-1px);
     }
-    .chat-bubble table {
-        border-collapse: collapse;
-        width: 100%;
-        margin-bottom: 0.6rem;
+    .custom-stop-btn:active {
+        transform: translateY(0);
     }
-    .chat-bubble th, .chat-bubble td {
-        border: 1px solid #d1d5db;
-        padding: 0.3rem 0.5rem;
+    .custom-stop-btn svg,
+    .custom-stop-btn [data-testid] { display: none !important; }
+    .custom-stop-btn::before {
+        content: "";
+        width: 12px;
+        height: 12px;
+        background: #ffffff;
+        border-radius: 2px;
     }
-    .session-caption {
-        color: #5f6368;
-        font-size: 0.82rem;
-        margin-top: 0.3rem;
+
+    /* 停止按钮旋转光环动画 */
+    @keyframes stopBtnRingRotate {
+        from { transform: translate(-50%, -50%) rotate(0deg); }
+        to   { transform: translate(-50%, -50%) rotate(360deg); }
     }
-    @media (max-width: 768px) {
-        .chat-bubble {
-            max-width: 88%;
-            font-size: 0.93rem;
-        }
+    .custom-stop-btn::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 52px;
+        height: 52px;
+        border: 2px solid transparent;
+        border-top-color: #ef4444;
+        border-right-color: rgba(239, 68, 68, 0.3);
+        border-radius: 50%;
+        animation: stopBtnRingRotate 1s linear infinite;
+        pointer-events: none;
+    }
+
+    /* 停止按钮移入输入框区域后的容器 */
+    .stop-btn-in-input {
+        position: absolute;
+        right: 14px;
+        bottom: 10px;
+        z-index: 100;
+    }
+
+    /* ===== 思考中指示器 ===== */
+    .thinking-indicator-wrap {
+        display: flex;
+        justify-content: flex-start;
+        margin: 0.6rem 0 0.3rem;
+    }
+    .thinking-indicator {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 16px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        color: #64748b;
+    }
+
+    @keyframes ringRotate {
+        from { transform: translate(-50%, -50%) rotate(0deg); }
+        to   { transform: translate(-50%, -50%) rotate(360deg); }
+    }
+    @keyframes squarePulse {
+        0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        50%      { transform: translate(-50%, -50%) scale(0.75); opacity: 0.7; }
+    }
+    .thinking-icon {
+        position: relative;
+        width: 24px;
+        height: 24px;
+    }
+    .thinking-square {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 10px;
+        height: 10px;
+        background: #3b82f6;
+        border-radius: 2px;
+        transform: translate(-50%, -50%);
+        animation: squarePulse 1.2s ease-in-out infinite;
+    }
+    .thinking-ring {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 24px;
+        height: 24px;
+        border: 2px solid transparent;
+        border-top-color: #3b82f6;
+        border-right-color: rgba(59, 130, 246, 0.25);
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        animation: ringRotate 0.9s linear infinite;
+    }
+
+    /* 侧边栏内 Streamlit 原生按钮通用样式（如有多余按钮） */
+    [data-testid="stSidebar"] [data-testid="stButton"] button {
+        border-radius: 10px !important;
+        font-weight: 600 !important;
     }
 </style>
 """,
     unsafe_allow_html=True,
 )
-
-st.title("智能法律问答系统")
-st.caption("刑法问答助手")
-st.divider()
 
 if "session_ids" not in st.session_state:
     sessions = list_session_ids()
@@ -440,18 +707,88 @@ if prompt:
     st.session_state["message"].append({"role": "user", "content": prompt})
     render_bubble("user", prompt)
 
-    ai_res_list = []
-    with st.spinner("思考中..."):
-        res_stream = st.session_state["rag"].chain.stream({"input": prompt}, session_config)
+    # 思考中指示器（正方形 + 旋转圆圈）
+    st.markdown(
+        """
+        <div class="thinking-indicator-wrap" id="thinking-indicator">
+            <div class="thinking-indicator">
+                <div class="thinking-icon">
+                    <div class="thinking-square"></div>
+                    <div class="thinking-ring"></div>
+                </div>
+                <span>思考中...</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-        def capture(generator, cache_list):
-            for chunk in generator:
-                cache_list.append(chunk)
-                yield chunk
+    # JS: 将停止按钮移入输入框区域
+    st.markdown(
+        """
+        <script>
+        (function() {
+            var tries = 0;
+            function findStopBtn() {
+                var btn =
+                    document.querySelector('[data-testid="stHeader"] [kind="headerStopSequence"]') ||
+                    document.querySelector('[data-testid="stHeader"] button[kind="headerStopSequence"]') ||
+                    document.querySelector('[data-testid="stHeaderStopSequence"]') ||
+                    document.querySelector('[data-testid="stHeader"] .stButton button');
+                if (!btn && ++tries <= 40) {
+                    setTimeout(findStopBtn, 150);
+                    return;
+                }
+                if (!btn) return;
+                var chatInput = document.querySelector('[data-testid="stChatInput"]');
+                if (!chatInput) return;
+                var parent = chatInput.parentElement;
+                if (!parent) return;
+                if (parent.querySelector('.custom-stop-btn')) return;
+                btn.style.display = 'none';
+                btn.style.position = 'absolute';
+                btn.style.right = '14px';
+                btn.style.bottom = '10px';
+                btn.style.width = '38px';
+                btn.style.height = '38px';
+                btn.style.padding = '0';
+                btn.style.margin = '0';
+                btn.style.zIndex = '100';
+                btn.style.background = 'linear-gradient(135deg, #ef4444, #dc2626)';
+                btn.style.color = '#ffffff';
+                btn.style.border = 'none';
+                btn.style.borderRadius = '12px';
+                btn.style.cursor = 'pointer';
+                btn.style.boxShadow = '0 2px 8px rgba(239,68,68,0.3)';
+                btn.classList.add('custom-stop-btn');
+                if (!parent.style.position || parent.style.position === 'static') {
+                    parent.style.position = 'relative';
+                }
+                parent.appendChild(btn);
+                btn.style.display = 'inline-flex';
+            }
+            findStopBtn();
+        })();
+        </script>
+        """,
+        unsafe_allow_html=True,
+    )
 
-        with st.empty():
-            ai_text = st.write_stream(capture(res_stream, ai_res_list))
+    rag_chain = st.session_state["rag"].chain
+    stream = rag_chain.stream({"input": prompt}, session_config)
 
-        final_ai_text = ai_text if isinstance(ai_text, str) else "".join(ai_res_list)
-        st.session_state["message"].append({"role": "assistant", "content": final_ai_text})
-        st.rerun()
+    # 流式输出：逐字显示纯文本，避免 markdown 结构先蹦出来
+    placeholder = st.empty()
+    collected = []
+    for chunk in stream:
+        collected.append(chunk)
+        placeholder.markdown(
+            f'<div class="stream-output">{escape("".join(collected))}</div>',
+            unsafe_allow_html=True,
+        )
+
+    # 流式结束：用 markdown 气泡替换纯文本
+    final_ai_text = "".join(collected)
+    placeholder.empty()
+    render_bubble("assistant", final_ai_text)
+    st.session_state["message"].append({"role": "assistant", "content": final_ai_text})
