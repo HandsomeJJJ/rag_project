@@ -13,6 +13,7 @@ if PROJECT_ROOT not in sys.path:
 
 from core import config
 from generation.rag_service import RagService
+from ingestion.ingest_service import KnowledgeBaseService
 from memory.history_store import (
     delete_history,
     get_history,
@@ -558,6 +559,23 @@ st.markdown(
     }
     .stream-output * { color: #1e293b !important; }
 
+    /* ===== 上传按钮 ===== */
+    .upload-toggle-btn {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 34px; height: 34px; border-radius: 50%;
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        color: #fff; font-size: 1.4rem; font-weight: 700;
+        text-decoration: none; cursor: pointer;
+        box-shadow: 0 2px 8px rgba(37,99,235,0.3);
+        transition: transform 0.15s, box-shadow 0.15s;
+        line-height: 1;
+    }
+    .upload-toggle-btn:hover {
+        transform: scale(1.1);
+        box-shadow: 0 4px 14px rgba(37,99,235,0.4);
+        color: #fff;
+    }
+
     /* ===== 停止按钮美化 ===== */
     /* 隐藏顶部默认停止按钮 */
     [data-testid="stHeader"] [kind="headerStopSequence"],
@@ -759,6 +777,48 @@ st.markdown('<div class="chat-wrap">', unsafe_allow_html=True)
 for message in st.session_state["message"]:
     render_bubble(message["role"], message["content"])
 st.markdown("</div>", unsafe_allow_html=True)
+
+# ---- 文件上传区域 ----
+if "show_uploader" not in st.session_state:
+    st.session_state["show_uploader"] = False
+
+# 处理 + 号按钮点击（通过 query_params）
+_toggle = st.query_params.get("toggle_upload")
+if _toggle:
+    st.session_state["show_uploader"] = not st.session_state["show_uploader"]
+    st.query_params.clear()
+    st.rerun()
+
+# + 号按钮（始终显示在输入框上方）
+st.markdown(
+    '<div style="display:flex;justify-content:flex-start;margin-bottom:0.3rem;">'
+    '<a href="?toggle_upload=1" target="_self" class="upload-toggle-btn"'
+    ' title="上传知识库文件">+</a>'
+    '</div>',
+    unsafe_allow_html=True,
+)
+
+# 文件上传器（点击 + 后展开）
+if st.session_state["show_uploader"]:
+    uploaded_file = st.file_uploader(
+        "上传 TXT 文件到知识库",
+        type=["txt"],
+        accept_multiple_files=False,
+        label_visibility="collapsed",
+    )
+    if uploaded_file is not None:
+        file_name = uploaded_file.name
+        text = uploaded_file.getvalue().decode("utf-8")
+        if "kb_service" not in st.session_state:
+            st.session_state["kb_service"] = KnowledgeBaseService()
+        with st.spinner(f"正在载入知识库：{file_name} ..."):
+            result = st.session_state["kb_service"].upload_by_str(text, file_name)
+        st.session_state["message"].append({
+            "role": "assistant",
+            "content": f"📂 **知识库上传结果**\n\n文件：`{file_name}`\n\n{result}",
+        })
+        st.session_state["show_uploader"] = False
+        st.rerun()
 
 prompt = st.chat_input("请输入你的问题")
 if prompt:
