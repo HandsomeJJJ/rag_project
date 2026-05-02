@@ -5,6 +5,7 @@ from html import escape
 from uuid import uuid4
 
 import streamlit as st
+import streamlit.components.v1 as components
 from dotenv import load_dotenv
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -134,7 +135,7 @@ def _render_sidebar_history(active_session_id: str, session_ids: list[str]) -> N
         '<span class="brand-icon">&#9878;&#65039;</span>'
         '<div class="brand-text">'
         '<div class="brand-title">智能法律问答系统</div>'
-        '<div class="brand-sub">劳动法问答助手</div>'
+        '<div class="brand-sub">劳动法&教育法问答助手</div>'
         '</div>'
         '</div>'
         '<a class="new-chat-btn" href="?action=new" target="_self">'
@@ -208,9 +209,9 @@ def render_bubble(role: str, content: str) -> None:
         )
     st.markdown(html, unsafe_allow_html=True)
 
-
+#标签页设置
 st.set_page_config(page_title="智能法律问答系统", page_icon="⚖️", layout="centered")
-
+#界面设置
 st.markdown(
     """
 <style>
@@ -559,22 +560,7 @@ st.markdown(
     }
     .stream-output * { color: #1e293b !important; }
 
-    /* ===== 上传按钮 ===== */
-    .upload-toggle-btn {
-        display: inline-flex; align-items: center; justify-content: center;
-        width: 34px; height: 34px; border-radius: 50%;
-        background: linear-gradient(135deg, #2563eb, #1d4ed8);
-        color: #fff; font-size: 1.4rem; font-weight: 700;
-        text-decoration: none; cursor: pointer;
-        box-shadow: 0 2px 8px rgba(37,99,235,0.3);
-        transition: transform 0.15s, box-shadow 0.15s;
-        line-height: 1;
-    }
-    .upload-toggle-btn:hover {
-        transform: scale(1.1);
-        box-shadow: 0 4px 14px rgba(37,99,235,0.4);
-        color: #fff;
-    }
+    /* 上传按钮样式由 components.html 内联注入 */
 
     /* ===== 停止按钮美化 ===== */
     /* 隐藏顶部默认停止按钮 */
@@ -782,21 +768,64 @@ st.markdown("</div>", unsafe_allow_html=True)
 if "show_uploader" not in st.session_state:
     st.session_state["show_uploader"] = False
 
-# 处理 + 号按钮点击（通过 query_params）
+# 处理 + 号按钮点击（通过 query_params）—— 必须在渲染按钮之前处理，确保符号与状态同步
 _toggle = st.query_params.get("toggle_upload")
 if _toggle:
     st.session_state["show_uploader"] = not st.session_state["show_uploader"]
     st.query_params.clear()
     st.rerun()
 
-# + 号按钮（始终显示在输入框上方）
-st.markdown(
-    '<div style="display:flex;justify-content:flex-start;margin-bottom:0.3rem;">'
-    '<a href="?toggle_upload=1" target="_self" class="upload-toggle-btn"'
-    ' title="上传知识库文件">+</a>'
-    '</div>',
-    unsafe_allow_html=True,
+# + 号按钮（通过 components.html 注入，移动到聊天输入框左侧）
+_btn_symbol = "−" if st.session_state["show_uploader"] else "+"
+_btn_title = "收起上传" if st.session_state["show_uploader"] else "上传知识库文件"
+
+_upload_btn_html = (
+    '<style>'
+    '#upload-toggle-btn{'
+    'display:inline-flex;align-items:center;justify-content:center;'
+    'width:38px;height:38px;border-radius:50%;margin-right:14px;'
+    'background:linear-gradient(135deg,#3b82f6,#2563eb);'
+    'color:#ffffff !important;font-size:1.3rem;font-weight:700;'
+    'text-decoration:none !important;border:none;outline:none;'
+    'box-shadow:0 2px 10px rgba(59,130,246,0.35);'
+    'transition:all 0.2s ease;line-height:1;flex-shrink:0;'
+    'cursor:pointer;-webkit-user-select:none;'
+    '}'
+    '#upload-toggle-btn:hover{'
+    'transform:scale(1.1);'
+    'box-shadow:0 4px 16px rgba(59,130,246,0.5);'
+    'text-decoration:none !important;'
+    '}'
+    '</style>'
+    '<div id="upload-btn-anchor">'
+    '<a id="upload-toggle-btn" href="?toggle_upload=1" title="' + _btn_title + '">'
+    + _btn_symbol +
+    '</a></div>'
+    '<script>'
+    '(function(){'
+    'var parentWin=window.parent;'
+    'var doc=parentWin.document;'
+    'function moveBtn(){'
+    'var anchor=document.getElementById("upload-btn-anchor");'
+    'if(!anchor)return;'
+    'var chatInput=doc.querySelector(\'[data-testid="stChatInput"]\');'
+    'if(!chatInput){setTimeout(moveBtn,200);return;}'
+    'var container=chatInput.parentElement;'
+    'if(!container)return;'
+    'var old=doc.querySelector("#upload-btn-anchor");'
+    'if(old)old.remove();'
+    'var style=document.querySelector("style");'
+    'if(style){var s=doc.createElement("style");s.textContent=style.textContent;doc.head.appendChild(s);}'
+    'container.style.display="flex";'
+    'container.style.alignItems="center";'
+    'container.insertBefore(anchor,chatInput);'
+    '}'
+    'moveBtn();'
+    '})();'
+    '</script>'
 )
+
+components.html(_upload_btn_html, height=0)
 
 # 文件上传器（点击 + 后展开）
 if st.session_state["show_uploader"]:
