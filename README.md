@@ -1,6 +1,6 @@
 # 法律智能问答助手（RAG + 混合召回 + 记忆压缩）
 
-本项目是一个面向法律问答场景的本地 RAG 系统，基于 Streamlit 提供上传与对话双页面，结合 Chroma 向量检索、BM25 关键词检索与 RRF 融合，并引入会话记忆压缩机制，支持较长多轮对话。
+本项目是一个面向法律问答场景的本地 RAG 系统，基于 Streamlit 提供上传与对话双页面（已支持在对话页面直接上传），结合 Chroma 向量检索、BM25 关键词检索与 RRF 融合，并引入会话记忆压缩机制，支持较长多轮对话。
 
 ## 1. 项目能力
 
@@ -165,7 +165,6 @@ python -m unittest discover -s test -p "test_memory_compression.py" -v
 ```powershell
 python test/validate_memory_compression.py
 ```
-
 
 ## 9. 免责声明
 
