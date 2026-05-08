@@ -15,6 +15,8 @@ langchain-community>=0.4.0,<0.5.0
 langchain-chroma>=1.0.0,<2.0.0
 # LangChain文本分割器独立包（RecursiveCharacterTextSplitter依赖）
 langchain-text-splitters>=1.0.0,<2.0.0
+# MCP 客户端 SDK（用于连接外部 MCP Server）
+mcp>=1.0.0,<2.0.0
 
 # ===================== 向量数据库与数值计算 =====================
 # Chroma本地持久化向量数据库
