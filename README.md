@@ -1,18 +1,27 @@
 # 法律智能问答助手（RAG + 混合召回 + 记忆压缩）
 
 本项目是一个面向法律问答场景的本地 RAG 系统，基于 Streamlit 提供上传与对话双页面（已支持在对话页面直接上传），结合 Chroma 向量检索、BM25 关键词检索与 RRF 融合，并引入会话记忆压缩机制，支持较长多轮对话。当前还支持作为 MCP Client 调用外部工具，补足“最新法规”和“外部系统查询”能力。
-本项目是一个面向法律问答场景的本地 RAG 系统，基于 Streamlit 提供上传与对话双页面（已支持在对话页面直接上传），结合 Chroma 向量检索、BM25 关键词检索与 RRF 融合，并引入会话记忆压缩机制，支持较长多轮对话。当前还支持作为 MCP Client 调用外部工具，补足“最新法规”和“外部系统查询”能力。
+
+Embedding 检索本地知识 -> Qwen 判断是否要调用 MCP -> 取外部数据 -> 生成最终答案
 
 ## 1. 项目能力
 
 - 文档入库：法律文本预处理、分块、向量化并持久化到 Chroma。
+  `ingestion/legal_preprocess.py::preprocess_legal_text`，
+  `ingestion/legal_chunker.py::parse_legal_article_units` / `build_chunks_from_article_units`，`ingestion/ingest_service.py::KnowledgeBaseService.upload_by_str`
 - 混合召回：向量检索 + BM25 并行召回，通过 RRF 融合后返回证据。
+  `retrieval/hybrid_retriever.py::HybridRetrieverService.retrieve` / `rrf_fuse`
 - 生成回答：使用通义千问大模型按法律模板输出结构化回复。
+  `generation/rag_service.py::RagService._run_agent` / `_build_chain` / `_build_chat_model`
 - MCP 外部工具：可连接外部 MCP Server，调用网页搜索、数据库查询等工具。
-- MCP 外部工具：可连接外部 MCP Server，调用网页搜索、数据库查询等工具。
+  `agent/mcp_client.py::MCPClientManager.from_environment` / `list_tools` / `call_tool`，
+  `agent/tool_executor.py::build_mcp_tool`
 - 会话管理：会话列表、新建、置顶、删除、持久化历史。
+  `app/streamlit_chat.py::new_session_id` / `load_messages_from_history` / `_consume_query_action`，`memory/history_store.py::list_session_ids` / `toggle_session_pinned` / `delete_history`
 - 记忆压缩：滑动窗口 + 摘要压缩 + Token 预算裁剪。
+  `memory/history_store.py::_compress_messages` / `_summarize_messages` / `FileChatMessageHistory.add_messages`
 - 可观测性：可开启压缩调试日志，直接在控制台查看压缩过程。
+  `memory/history_store.py::_debug_log` / `_compress_messages`
 
 当前模型配置：
 
@@ -267,8 +276,6 @@ python -m unittest discover -s test -p "test_memory_compression.py" -v
 ```powershell
 python test/validate_memory_compression.py
 ```
-
-## 10. 免责声明
 
 ## 10. 免责声明
 
