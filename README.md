@@ -4,7 +4,7 @@
 
 Embedding 检索本地知识 -> Qwen 判断是否要调用 MCP -> 取外部数据 -> 生成最终答案
 
-## 1. 项目能力
+## 1.项目功能
 
 - 文档入库：法律文本预处理、分块、向量化并持久化到 Chroma。
   `ingestion/legal_preprocess.py::preprocess_legal_text`，
@@ -35,43 +35,31 @@ Embedding 检索本地知识 -> Qwen 判断是否要调用 MCP -> 取外部数�
 
 ## 2. 目录结构
 
-```text
-KnowledgeBase-RAG-LLM-System/
-├── app/
-│   ├── streamlit_chat.py            # 对话页面
-│   └── streamlit_upload.py          # 文档上传与入库页面
+│ └── streamlit_upload.py # 文档上传与入库页面
 ├── core/
-│   └── config.py                    # 全局配置（检索/模型/记忆压缩）
-├── generation/
-│   └── rag_service.py               # RAG + MCP Agent 主链路
 ├── agent/
-│   ├── mcp_client.py                # MCP Client 连接与工具发现
-│   └── tool_executor.py             # MCP 工具封装
-│   └── rag_service.py               # RAG + MCP Agent 主链路
-├── agent/
-│   ├── mcp_client.py                # MCP Client 连接与工具发现
-│   └── tool_executor.py             # MCP 工具封装
+│ ├── mcp_client.py # MCP Client 连接与工具发现
+│ └── tool_executor.py # MCP 工具封装
 ├── retrieval/
-│   └── hybrid_retriever.py          # 向量 + BM25 + RRF
+│ └── hybrid_retriever.py # 向量 + BM25 + RRF
 ├── ingestion/
-│   ├── legal_preprocess.py          # 文本预处理
-│   ├── legal_chunker.py             # 分块与元数据
-│   └── ingest_service.py            # 入库服务
+│ ├── legal_preprocess.py # 文本预处理
+│ ├── legal_chunker.py # 分块与元数据
+│ └── ingest_service.py # 入库服务
 ├── infra/
-│   └── vector_store.py              # 向量库封装
+│ └── vector_store.py # 向量库封装
 ├── memory/
-│   └── history_store.py             # 会话持久化与压缩策略
+│ └── history_store.py # 会话持久化与压缩策略
 ├── test/
-│   ├── test_memory_compression.py   # 记忆压缩单元测试
-│   └── validate_memory_compression.py # 压缩行为演示脚本
-├── data/                            # 原始法律文本与知识文件
-├── doc/                             # 方案、流程图、总结文档
-├── chroma_db/                       # 运行后生成：向量库
-├── chat_history/                    # 运行后生成：会话历史
-├── mcp_servers.json                 # MCP Server 配置样例
+│ ├── test_memory_compression.py # 记忆压缩单元测试
+│ └── validate_memory_compression.py # 压缩行为演示脚本
+├── data/ # 原始法律文本与知识文件
+├── doc/ # 方案、流程图、总结文档
+├── chroma_db/ # 运行后生成：向量库
+├── chat_history/ # 运行后生成：会话历史
+├── mcp_servers.json # MCP Server 配置样例
 ├── requirements.txt
 └── README.md
-```
 
 ## 3. 环境准备
 
@@ -149,64 +137,15 @@ MCP 用于把外部能力接进来，例如网页搜索、MySQL、企业信息�
 
 ## 6. 启动方式
 
-MCP_SERVER_CONFIG_PATH=./mcp_servers.json
-
-````
-
-如果你不想用环境变量，也可以直接把 `mcp_servers.example.json` 复制为 `mcp_servers.json`，程序会自动读取项目根目录下的 `mcp_servers.json`。
-
-## 5. MCP 外部工具配置
-
-MCP 用于把外部能力接进来，例如网页搜索、MySQL、企业信息查询等。当前实现默认使用 `stdio` 方式连接 MCP Server。
-
-### 5.1 配置文件格式
-
-`mcp_servers.json` 示例：
-
-```json
-{
-  "servers": [
-    {
-      "name": "web-search",
-      "command": "python",
-      "args": ["servers/web_search_mcp.py"],
-      "env": {
-        "SEARCH_API_KEY": "replace-me"
-      },
-      "transport": "stdio"
-    }
-  ]
-}
-````
-
-### 5.2 可用字段
-
-- `name`: MCP Server 名称。
-- `command`: 启动 MCP Server 的命令。
-- `args`: 命令参数数组。
-- `env`: 进程环境变量。
-- `cwd`: 可选工作目录。
-- `transport`: 目前使用 `stdio`。
-
-### 5.3 启用方式
-
-- 方式一：把配置文件保存为项目根目录的 `mcp_servers.json`。
-- 方式二：在 `.env` 里设置 `MCP_SERVER_CONFIG_PATH` 指向任意配置文件。
-- 方式三：将完整 JSON 放进 `MCP_SERVERS_JSON` 环境变量。
-
-如果未配置 MCP，系统会自动退回到“本地检索 + 生成”的模式。
-
-## 6. 启动方式
-
 在项目根目录执行。
 
-### 5.1 启动上传页面（先入库）
+### 6.1 启动上传页面（先入库）
 
 ```powershell
 uv run streamlit run app/streamlit_upload.py
 ```
 
-### 5.2 启动聊天页面
+### 6.2 启动聊天页面
 
 ```powershell
 uv run streamlit run app/streamlit_chat.py
@@ -221,11 +160,7 @@ streamlit run app/streamlit_chat.py
 
 ## 7. 关键配置说明
 
-## 7. 关键配置说明
-
 配置文件：`core/config.py`
-
-### 7.1 检索相关
 
 ### 7.1 检索相关
 
@@ -236,8 +171,6 @@ streamlit run app/streamlit_chat.py
 
 ### 7.2 记忆压缩相关
 
-### 7.2 记忆压缩相关
-
 - `memory_keep_recent_rounds`: 保留最近轮次（当前 3）
 - `memory_summary_trigger_rounds`: 摘要触发轮次（当前 5）
 - `memory_history_max_tokens`: 历史 token 预算（当前 4000）
@@ -245,8 +178,6 @@ streamlit run app/streamlit_chat.py
 - `memory_summary_enabled`: 是否启用摘要
 - `memory_summary_tag`: 内部摘要标识
 - `memory_compression_debug`: 是否打印压缩日志（当前开启）
-
-## 8. 记忆压缩策略（当前实现）
 
 ## 8. 记忆压缩策略（当前实现）
 
@@ -263,15 +194,13 @@ streamlit run app/streamlit_chat.py
 
 ## 9. 测试与验证
 
-## 9. 测试与验证
-
-### 8.1 单元测试
+### 9.1 单元测试
 
 ```powershell
 python -m unittest discover -s test -p "test_memory_compression.py" -v
 ```
 
-### 8.2 行为演示（打印压缩行为）
+### 9.2 行为演示（打印压缩行为）
 
 ```powershell
 python test/validate_memory_compression.py
