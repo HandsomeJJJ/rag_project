@@ -35,6 +35,7 @@ Embedding 检索本地知识 -> Qwen 判断是否要调用 MCP -> 取外部数�
 
 ## 2. 目录结构
 
+```
 │ └── streamlit_upload.py # 文档上传与入库页面
 ├── core/
 ├── agent/
@@ -60,6 +61,7 @@ Embedding 检索本地知识 -> Qwen 判断是否要调用 MCP -> 取外部数�
 ├── mcp_servers.json # MCP Server 配置样例
 ├── requirements.txt
 └── README.md
+```
 
 ## 3. 环境准备
 
