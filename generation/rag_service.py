@@ -18,7 +18,7 @@ from infra.vector_store import VectorStoreService
 from memory.history_store import get_history
 from retrieval.hybrid_retriever import HybridRetrieverService
 
-
+# 方便观察每轮 Agent 交互的输出内容
 def _print_debug_block(title: str, body: str) -> None:
     print("=" * 20)
     print(title)
