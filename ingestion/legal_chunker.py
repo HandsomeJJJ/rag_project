@@ -27,15 +27,16 @@ def _last_match_text(pattern: re.Pattern, text: str):
 def _all_match_texts(pattern: re.Pattern, text: str):
 	return [m.group(0).strip() for m in pattern.finditer(text)]
 
-
+# 将法律正文解析为按“条”组织的结构化单元。
 def parse_legal_article_units(cleaned_text: str):
 	"""将法律正文解析为按“条”组织的结构化单元。"""
+	# 把在句子中间、没有换行的法条标题，强制换新行。
 	normalized_text = INLINE_ARTICLE_BREAK_PATTERN.sub(r"\n\1", cleaned_text)
 
 	units = []
 	state = {"part": "", "chapter": "", "section": ""}
 	current = None
-
+	# 遇到新的“条”时，把之前的单元（如果有）收尾，并开启新单元。
 	def flush_current():
 		if not current:
 			return
@@ -51,7 +52,7 @@ def parse_legal_article_units(cleaned_text: str):
 				"text": content,
 			}
 		)
-
+	# 按行扫描，构建结构化的“条”单元。
 	for raw_line in normalized_text.split("\n"):
 		line = raw_line.strip()
 		if not line:
@@ -90,7 +91,7 @@ def parse_legal_article_units(cleaned_text: str):
 	flush_current()
 	return units
 
-
+# 按条合并 chunk，且严格不跨章、不跨节。
 def build_chunks_from_article_units(article_units: list[dict], max_chars: int, overlap_articles: int = 0):
 	"""按条合并 chunk，且严格不跨章、不跨节。"""
 	if not article_units:
@@ -164,7 +165,7 @@ def build_chunks_from_article_units(article_units: list[dict], max_chars: int, o
 
 	return chunks, metadata_list
 
-
+# 提取每章末条号，供后续构建元数据使用
 def extract_chapter_article_end_map(cleaned_text: str):
 	"""提取每一章对应的末条条号。"""
 	chapter_end_map = {}
@@ -188,7 +189,7 @@ def extract_chapter_article_end_map(cleaned_text: str):
 
 	return chapter_end_map
 
-
+#构建元数据
 def build_legal_chunk_metadata(
 	chunks: list[str],
 	source: str,
