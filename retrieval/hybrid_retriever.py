@@ -11,7 +11,7 @@ def _char_tokenize(text: str) -> list[str]:
     """使用字符级分词，避免额外依赖。"""
     return [c for c in text if not c.isspace()]
 
-
+# 生成文档唯一键，基于 metadata 和内容前 120 字符的 hash。
 def _doc_key(doc: Document) -> str:
     md = doc.metadata or {}
     return "|".join(
@@ -24,7 +24,7 @@ def _doc_key(doc: Document) -> str:
         ]
     )
 
-
+# RRF 融合算法实现，输入多个 ranked list，输出融合后的 top_k 文档列表。
 def rrf_fuse(
     ranked_lists: list[list[Document]],
     top_k: int,
@@ -46,7 +46,7 @@ def rrf_fuse(
     ranked_keys = sorted(score_map.keys(), key=lambda k: score_map[k], reverse=True)
     return [doc_map[k] for k in ranked_keys[:top_k]]
 
-
+# 混合召回服务，结合向量检索和 BM25 检索，最终通过 RRF 融合结果。
 @dataclass
 class HybridRetrieverService:
     """混合召回：向量并行 BM25，最终 RRF 融合。"""
@@ -60,7 +60,7 @@ class HybridRetrieverService:
 
     _bm25_retriever: BM25Retriever | None = None
     _bm25_built_on_count: int = -1
-
+# 如果文档数量没变，就继续用旧的 BM25 索引；如果文档数量变化则重新构建。
     def _ensure_bm25(self):
         all_docs = self.get_all_docs()
         count = len(all_docs)
@@ -76,7 +76,7 @@ class HybridRetrieverService:
         retriever.k = self.bm25_k
         self._bm25_retriever = retriever
         self._bm25_built_on_count = count
-
+# 召回接口，先获取向量检索结果，再获取 BM25 检索结果，最后通过 RRF 融合返回最终结果。
     def retrieve(self, query: str) -> list[Document]:
         vector_docs = self.get_vector_docs(query, self.vector_k)
 

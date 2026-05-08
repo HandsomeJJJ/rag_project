@@ -8,7 +8,7 @@ from core import config
 from ingestion.legal_chunker import build_chunks_from_article_units, parse_legal_article_units
 from ingestion.legal_preprocess import preprocess_legal_text
 
-
+# 由于 DashScope 对单次写入 Chroma 的文本数量有限制（上限为 10），因此需要分批写入。
 def add_texts_in_batches(chroma, texts, metadatas, batch_size: int = 10):
 	"""按 DashScope 允许的上限分批写入 Chroma。"""
 	if len(texts) != len(metadatas):
@@ -21,8 +21,9 @@ def add_texts_in_batches(chroma, texts, metadatas, batch_size: int = 10):
 			metadatas=metadatas[start:end],
 		)
 
-
+# 通过 MD5 校验文本内容是否已经存在知识库中，避免重复入库。
 def check_md5(md5_str: str):
+	# 如果不存在，创建一个新的 MD5 文件，并返回 False，表示内容未入库。
 	if not os.path.exists(config.md5_path):
 		open(config.md5_path, "w", encoding="utf-8").close()
 		return False
@@ -33,12 +34,12 @@ def check_md5(md5_str: str):
 			return True
 	return False
 
-
+# 将新的 MD5 值追加写入文件，记录已经入库的文本内容。
 def save_md5(md5_str: str):
 	with open(config.md5_path, "a", encoding="utf-8") as f:
 		f.write(md5_str + "\n")
 
-
+# 计算输入字符串的 MD5 值，用于内容去重校验。
 def get_string_md5(input_str: str, encoding="utf-8"):
 	str_bytes = input_str.encode(encoding=encoding)
 	md5_obj = hashlib.md5()
