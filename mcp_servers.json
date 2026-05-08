@@ -1,0 +1,12 @@
+{
+  "servers": [
+    {
+      "name": "web-search",
+      "command": ".venv/bin/python",
+      "args": [
+        "servers/web_search_mcp.py"
+      ],
+      "transport": "stdio"
+    }
+  ]
+}

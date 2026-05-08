@@ -3,9 +3,7 @@
     {
       "name": "web-search",
       "command": "python",
-      "args": [
-        "servers/web_search_mcp.py"
-      ],
+      "args": ["servers/web_search_mcp.py"],
       "env": {
         "SEARCH_API_KEY": "replace-me"
       },
@@ -14,9 +12,7 @@
     {
       "name": "mysql",
       "command": "python",
-      "args": [
-        "servers/mysql_mcp.py"
-      ],
+      "args": ["servers/mysql_mcp.py"],
       "env": {
         "MYSQL_HOST": "127.0.0.1",
         "MYSQL_PORT": "3306",
