@@ -31,6 +31,7 @@ class RagService:
         self.vector_service = VectorStoreService(
             embedding=DashScopeEmbeddings(model=config.embedding_model_name)
         )
+        # 混合检索服务
         self.hybrid_retriever = HybridRetrieverService(
             get_vector_docs=self.vector_service.get_vector_docs,
             get_all_docs=self.vector_service.get_all_documents,
@@ -44,7 +45,7 @@ class RagService:
         self.chat_model = _build_chat_model()
         self.tool_model = self._build_tool_model()
         self.chain = self._build_chain()
-
+    # 历史会话链
     def _build_chain(self):
         def invoke_agent(value: dict[str, Any]) -> str:
             question = str(value.get("input", "")).strip()
@@ -59,8 +60,12 @@ class RagService:
             input_messages_key="input",
             history_messages_key="history",
         )
-
+    # 绑定工具到模型
     def _build_tool_model(self):
+        # 工作原理：判断 MCP 执行器有没有挂载工具（has_tools）。
+        # 如果没有，直接用回普通聊天模型（self.chat_model）；
+        # 如果有，就用 bind_tools 把它和工具绑定起来。
+        # 这样既能支持带工具的 Agent，也能在工具缺失时优雅降级。
         if not self.mcp_executor.has_tools():
             return self.chat_model
 
@@ -69,10 +74,12 @@ class RagService:
         except Exception:
             return self.chat_model
 
+    # 格式化文档
     def _format_document(self, docs: list[Document]) -> str:
         if not docs:
             return "无相关参考资料"
         evidence_lines = []
+        # 遍历检索到的文档
         for i, doc in enumerate(docs, start=1):
             meta = doc.metadata or {}
             source = meta.get("source", "")
@@ -102,7 +109,8 @@ class RagService:
             f"\n\n【本地检索证据】\n{local_context}"
             f"\n\n【可用外部 MCP 工具】\n{tool_catalog}"
         )
-
+    # 兼容不同版本的 LangChain 和底层模型返回的 Tool Call 格式。
+    # 有些模型返回字典，有些返回对象，这个函数把它们统统拍扁成统一的字典格式。
     def _parse_tool_call(self, message: AIMessage) -> list[dict[str, Any]]:
         tool_calls = getattr(message, "tool_calls", None) or []
         parsed_calls: list[dict[str, Any]] = []
@@ -116,7 +124,7 @@ class RagService:
             if name is not None:
                 parsed_calls.append({"name": name, "args": args or {}, "id": call_id})
         return parsed_calls
-
+    # 从工具调用结果构建工具消息
     def _tool_message_from_result(self, tool_call: dict[str, Any], result_text: str) -> ToolMessage:
         call_id = str(tool_call.get("id") or tool_call.get("tool_call_id") or "").strip()
         if not call_id:
@@ -126,7 +134,7 @@ class RagService:
             tool_call_id=call_id,
             name=str(tool_call.get("name") or ""),
         )
-
+    # 纯文本提取
     def _extract_text(self, message: AIMessage) -> str:
         content = getattr(message, "content", "")
         if isinstance(content, str):
@@ -141,7 +149,9 @@ class RagService:
                     parts.append(str(item["text"]))
             return "\n".join(parts).strip()
         return str(content).strip()
-
+    # 规范化工具参数
+    # 工作原理：大模型有时会把工具参数输出为标准的 JSON 字典，有时却是一坨 JSON 字符串。
+    # 如果解析失败，就强行把它包在一个 {"value": ...} 字典里，保证后续代码不报错。
     def _normalize_tool_args(self, args: Any) -> dict[str, Any]:
         if isinstance(args, dict):
             return args
@@ -154,7 +164,7 @@ class RagService:
                 return parsed
             return {"value": parsed}
         return {"value": args}
-
+# 运行Agent
     def _run_agent(self, question: str, history: list[BaseMessage]) -> str:
         local_docs = self.hybrid_retriever.retrieve(question)
         local_context = self._format_document(local_docs)
@@ -162,11 +172,13 @@ class RagService:
             tool_catalog = self.mcp_executor.describe_tools_text(refresh=False)
         except Exception as exc:
             tool_catalog = f"当前无法加载外部 MCP 工具: {exc}"
-
+        # 构建系统提示
         messages: list[BaseMessage] = [
             SystemMessage(content=self._build_system_prompt(local_context, tool_catalog))
         ]
+        # 添加历史消息
         messages.extend(history)
+        # 添加当前问题
         messages.append(HumanMessage(content=question))
 
         if self.mcp_executor.has_tools():
@@ -208,7 +220,7 @@ class RagService:
             return self._extract_text(fallback_response)
         return str(fallback_response)
 
-
+# 初始化llm
 def _build_chat_model():
     """优先使用 LangChain v1 的统一模型初始化语法。"""
     try:

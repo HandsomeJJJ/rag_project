@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-
+# MCP服务器配置
 @dataclass(frozen=True)
 class MCPServerSpec:
     name: str
@@ -152,7 +152,7 @@ def _stringify_tool_content(content: Any) -> str:
             pass
     return str(content)
 
-
+# MCP客户端管理器
 class MCPClientManager:
     def __init__(self, servers: list[MCPServerSpec] | None = None):
         self.servers = servers or []
