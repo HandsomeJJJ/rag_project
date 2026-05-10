@@ -13,7 +13,7 @@ Embedding 检索本地知识 -> Qwen 判断是否要调用 MCP -> 取外部数�
   `retrieval/hybrid_retriever.py::HybridRetrieverService.retrieve` / `rrf_fuse`
 - 生成回答：使用通义千问大模型按法律模板输出结构化回复。
   `generation/rag_service.py::RagService._run_agent` / `_build_chain` / `_build_chat_model`
-- MCP 外部工具：可连接外部 MCP Server，调用网页搜索、数据库查询等工具。
+- 调用外部 MCP 工具：可连接外部 MCP Server，从而扩展自身能力（如搜索、数据库查询）
   `agent/mcp_client.py::MCPClientManager.from_environment` / `list_tools` / `call_tool`，
   `agent/tool_executor.py::build_mcp_tool`
 - 会话管理：会话列表、新建、置顶、删除、持久化历史。

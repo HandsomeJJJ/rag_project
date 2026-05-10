@@ -33,7 +33,7 @@ def new_session_id() -> str:
 def default_messages() -> list[dict[str, str]]:
     return [{"role": "assistant", "content": "你好，我是一个法律问答助手，我有什么可以帮助你？"}]
 
-
+# 聊天记录加载，过滤内部摘要消息
 def load_messages_from_history(session_id: str) -> list[dict[str, str]]:
     """从历史存储加载会话消息，并过滤内部摘要消息。
 
@@ -67,7 +67,7 @@ def session_label(session_id: str) -> str:
     preview = first_user_message[:15] if first_user_message else "新会话"
     return preview
 
-
+# URL 路由与动作分发
 def _consume_query_action() -> None:
     action = st.query_params.get("action")
     sid = st.query_params.get("sid")
@@ -101,7 +101,7 @@ def _consume_query_action() -> None:
     st.query_params.clear()
     st.rerun()
 
-
+# 渲染侧边栏历史会话
 def _render_sidebar_history(active_session_id: str, session_ids: list[str]) -> None:
     rows: list[str] = []
     for idx, sid in enumerate(session_ids):
@@ -177,7 +177,7 @@ ASSISTANT_AVATAR = (
     '<rect x="27" y="14" width="3" height="6" rx="1.5" fill="#10b981"/>'
     '</svg>'
 )
-
+# 渲染对话气泡
 def render_bubble(role: str, content: str) -> None:
     md_html = markdown.markdown(
         content,
