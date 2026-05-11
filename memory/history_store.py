@@ -263,7 +263,7 @@ def _compress_messages(all_messages: list[BaseMessage]) -> list[BaseMessage]:
 
     return compressed_messages
 
-
+# 使用本地JSON文件的会话历史实现，并内置压缩策略
 class FileChatMessageHistory(BaseChatMessageHistory):
     """基于本地 JSON 文件的会话历史实现，并内置压缩策略。"""
 
@@ -311,24 +311,24 @@ class FileChatMessageHistory(BaseChatMessageHistory):
         with open(self.file_path, "w", encoding="utf-8") as f:
             json.dump([], f)
 
-
+# 调用历史记录接口
 def get_history(session_id: str):
     """按会话 ID 获取历史对象。"""
     return FileChatMessageHistory(session_id, config.chat_history_directory)
 
-
+# 获取历史目录路径，不存在则自动创建
 def _history_dir() -> Path:
     """获取历史目录路径，不存在则自动创建。"""
     path = Path(config.chat_history_directory)
     path.mkdir(parents=True, exist_ok=True)
     return path
 
-
+# 返回会话元数据文件路径
 def _meta_file() -> Path:
     """返回会话元数据文件路径。"""
     return _history_dir() / ".session_meta.json"
 
-
+# 加载会话元数据，异常时返回空字典
 def _load_meta() -> dict[str, Any]:
     """加载会话元数据，异常时返回空字典。"""
     file_path = _meta_file()
@@ -342,13 +342,13 @@ def _load_meta() -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
 
-
+# 保存会话元数据到磁盘
 def _save_meta(meta: dict[str, Any]) -> None:
     """保存会话元数据到磁盘。"""
     with open(_meta_file(), "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
 
-
+# 列出全部会话 ID，并按置顶、更新时间、字母序排序
 def list_session_ids() -> list[str]:
     """列出全部会话 ID，并按置顶、更新时间、字母序排序。"""
     directory = _history_dir()
@@ -371,7 +371,7 @@ def list_session_ids() -> list[str]:
 
     return sorted(sessions, key=sort_key)
 
-
+# 删除指定会话历史及其元数据
 def delete_history(session_id: str) -> None:
     """删除指定会话历史及其元数据。"""
     file_path = _history_dir() / session_id
