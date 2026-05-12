@@ -48,7 +48,7 @@ def _estimate_message_tokens(message: BaseMessage) -> int:
     """
     # content_text: 统一把消息内容转成字符串后再估算。
     content_text = str(message.content) if message.content is not None else ""
-    # rough_tokens: 经验近似。中文通常 1 个字约等于 1~2 token，取 len/2 作为折中。
+    # rough_tokens: 经验近似。中文通常 1个 Token ≈ 1.5 到 2 个汉字，取 len/2 作为折中。
     rough_tokens = max(1, len(content_text) // 2)
     # role_overhead: 消息角色、结构化包装等固定开销。
     role_overhead = 6
