@@ -229,6 +229,13 @@ st.markdown(
         padding-top: 1rem !important;
     }
 
+    /* ★★★ 主内容区最大宽度 ★★★ */
+    /* 默认 centered 模式约 730px，改大可让聊天区域更宽 */
+    /* 常用值: 900px / 1000px / 1100px / 100%撑满 */
+    .block-container {
+        max-width: 1200px !important;
+    }
+
     /* 【标题】强制标题颜色为深蓝色，防止在深色模式下变成白色看不见 */
     h1, h2, h3, [data-testid="stMarkdownContainer"] h1 {
         color: #1e3a8a !important;
@@ -505,19 +512,31 @@ st.markdown(
         color: #dc2626 !important;
     }
     
-    /* 【聊天气泡】设计 */
+    /* =====【聊天气泡区域】=====
+       下方参数可自行调整气泡外观和宽度 */
+
+    /* 对话行：每条消息的外层容器 */
+    /* margin: 上下间距; gap: 头像与气泡之间的距离 */
     .chat-row { display: flex; align-items: flex-start; margin: 1.2rem 0; width: 100%; gap: 0.6rem; }
+    /* 用户消息靠右对齐 */
     .row-user { justify-content: flex-end; }
+    /* AI消息靠左对齐 */
     .row-assistant { justify-content: flex-start; }
 
+    /* 头像大小 */
+    /* 调整 width/height 可改变头像尺寸 */
     .avatar {
         width: 36px; height: 36px; border-radius: 50%; flex-shrink: 0;
         box-shadow: 0 2px 6px rgba(0,0,0,0.1);
     }
 
+    /* 气泡通用样式 */
+    /* ★★★ max-width 控制气泡最大宽度占比，改大则气泡更宽 ★★★ */
+    /* 例如改成 90% 几乎撑满整行，改成 60% 则更窄 */
+    /* padding: 气泡内边距，改大则气泡内部空间更多 */
     .chat-bubble {
         max-width: 80%;
-        padding: 0.8rem 1.2rem;
+        padding: 1rem 1.4rem;
         border-radius: 16px;
         font-size: 1rem;
         line-height: 1.6;
@@ -543,13 +562,14 @@ st.markdown(
     .stSpinner { display: none !important; }
     [data-testid="stToolbar"] { display: none !important; }
 
-    /* 流式输出区域样式 */
+    /* 流式输出区域样式（AI正在逐字输出时的临时气泡） */
+    /* ★ max-width 要与 .chat-bubble 保持一致，否则输出时和完成后宽度会跳变 ★ */
     .stream-output {
         background: #f1f5f9;
         border: 1px solid #e2e8f0;
         border-radius: 16px;
         border-bottom-left-radius: 4px;
-        padding: 0.8rem 1.2rem;
+        padding: 1rem 1.4rem;
         max-width: 80%;
         color: #1e293b !important;
         font-size: 1rem;
