@@ -1,0 +1,33 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: legal-rag-backend
+    working_dir: /workspace
+    env_file:
+      - .env
+    environment:
+      PYTHONPATH: /workspace/backend
+      MCP_SERVER_CONFIG_PATH: /workspace/mcp_servers.json
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/workspace/data
+      - ./chroma_db:/workspace/chroma_db
+      - ./chat_history:/workspace/chat_history
+      - ./mcp_servers.json:/workspace/mcp_servers.json:ro
+      - ./md5.text:/workspace/md5.text
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: legal-rag-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped

@@ -35,7 +35,7 @@ def _build_light_model():
             model_provider="tongyi",
         )
     except Exception:
-        # 回退策略：保持历史兼容，避免因为新版初始化失败导致主链路不可用。
+        # 回退策略：保持历史兼容（老方法初始化），避免因为新版初始化失败导致主链路不可用。
         return ChatTongyi(model=config.light_model_name)
 
 

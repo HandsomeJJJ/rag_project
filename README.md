@@ -1,27 +1,27 @@
 # 法律智能问答助手（RAG + 混合召回 + 记忆压缩）
 
-本项目是一个面向法律问答场景的本地 RAG 系统，基于 Streamlit 提供上传与对话双页面（已支持在对话页面直接上传），结合 Chroma 向量检索、BM25 关键词检索与 RRF 融合，并引入会话记忆压缩机制，支持较长多轮对话。当前还支持作为 MCP Client 调用外部工具，补足“最新法规”和“外部系统查询”能力。
+本项目是一个面向法律问答场景的本地 RAG 系统。核心仍由 Chroma 向量检索、BM25 关键词检索、RRF 融合、Qwen、Agent/MCP 与会话记忆组成。新增 Vue3 + FastAPI 前后端分离入口；原 Streamlit 页面保留，用作算法 Demo/调试界面。
 
 Embedding 检索本地知识 -> Qwen 判断是否要调用 MCP -> 取外部数据 -> 生成最终答案
 
 ## 1.项目功能
 
 - 文档入库：法律文本预处理、分块、向量化并持久化到 Chroma。
-  `ingestion/legal_preprocess.py::preprocess_legal_text`，
-  `ingestion/legal_chunker.py::parse_legal_article_units` / `build_chunks_from_article_units`，`ingestion/ingest_service.py::KnowledgeBaseService.upload_by_str`
+  `backend/ingestion/legal_preprocess.py::preprocess_legal_text`，
+  `backend/ingestion/legal_chunker.py::parse_legal_article_units` / `build_chunks_from_article_units`，`backend/ingestion/ingest_service.py::KnowledgeBaseService.upload_by_str`
 - 混合召回：向量检索 + BM25 并行召回，通过 RRF 融合后返回证据。
-  `retrieval/hybrid_retriever.py::HybridRetrieverService.retrieve` / `rrf_fuse`
+  `backend/retrieval/hybrid_retriever.py::HybridRetrieverService.retrieve` / `rrf_fuse`
 - 生成回答：使用通义千问大模型按法律模板输出结构化回复。
-  `generation/rag_service.py::RagService._run_agent` / `_build_chain` / `_build_chat_model`
+  `backend/generation/rag_service.py::RagService._run_agent` / `_build_chain` / `_build_chat_model`
 - 调用外部 MCP 工具：可连接外部 MCP Server，从而扩展自身能力（如搜索、数据库查询）
-  `agent/mcp_client.py::MCPClientManager.from_environment` / `list_tools` / `call_tool`，
-  `agent/tool_executor.py::build_mcp_tool`
+  `backend/agent/mcp_client.py::MCPClientManager.from_environment` / `list_tools` / `call_tool`，
+  `backend/agent/tool_executor.py::build_mcp_tool`
 - 会话管理：会话列表、新建、置顶、删除、持久化历史。
-  `app/streamlit_chat.py::new_session_id` / `load_messages_from_history` / `_consume_query_action`，`memory/history_store.py::list_session_ids` / `toggle_session_pinned` / `delete_history`
+  `backend/app/streamlit_chat.py::new_session_id` / `load_messages_from_history` / `_consume_query_action`，`backend/memory/history_store.py::list_session_ids` / `toggle_session_pinned` / `delete_history`
 - 记忆压缩：滑动窗口 + 摘要压缩 + Token 预算裁剪。
-  `memory/history_store.py::_compress_messages` / `_summarize_messages` / `FileChatMessageHistory.add_messages`
+  `backend/memory/history_store.py::_compress_messages` / `_summarize_messages` / `FileChatMessageHistory.add_messages`
 - 可观测性：可开启压缩调试日志，直接在控制台查看压缩过程。
-  `memory/history_store.py::_debug_log` / `_compress_messages`
+  `backend/memory/history_store.py::_debug_log` / `_compress_messages`
 
 当前模型配置：
 
@@ -35,33 +35,32 @@ Embedding 检索本地知识 -> Qwen 判断是否要调用 MCP -> 取外部数�
 本地无，则调用MCP进行网络搜索
 ![alt text](image/演示02.png)
 
-## 2. 目录结构
+## 2. 项目目录结构
 
 ```txt
-│ └── streamlit_upload.py # 文档上传与入库页面
-├── core/
-├── agent/
-│ ├── mcp_client.py # MCP Client 连接与工具发现
-│ └── tool_executor.py # MCP 工具封装
-├── retrieval/
-│ └── hybrid_retriever.py # 向量 + BM25 + RRF
-├── ingestion/
-│ ├── legal_preprocess.py # 文本预处理
-│ ├── legal_chunker.py # 分块与元数据
-│ └── ingest_service.py # 入库服务
-├── infra/
-│ └── vector_store.py # 向量库封装
-├── memory/
-│ └── history_store.py # 会话持久化与压缩策略
-├── test/
-│ ├── test_memory_compression.py # 记忆压缩单元测试
-│ └── validate_memory_compression.py # 压缩行为演示脚本
-├── data/ # 原始法律文本与知识文件
-├── doc/ # 方案、流程图、总结文档
-├── chroma_db/ # 运行后生成：向量库
-├── chat_history/ # 运行后生成：会话历史
-├── mcp_servers.json # MCP Server 配置样例
-├── requirements.txt
+├── backend/
+│   ├── api/              # FastAPI 路由及 SSE 响应
+│   ├── agent/            # Agent、MCP 客户端与工具
+│   ├── app/              # 保留的 Streamlit Demo
+│   ├── core/             # 配置与项目根目录数据路径
+│   ├── generation/       # RagService
+│   ├── infra/            # Chroma 向量库封装
+│   ├── ingestion/        # 文档预处理、分块和入库
+│   ├── memory/           # 会话历史与记忆压缩
+│   ├── retrieval/        # Hybrid Retrieval / RRF
+│   ├── servers/          # MCP Server 实现
+│   ├── test/             # 测试和调试脚本
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/             # Vue 3 + Vite（含 Nginx Dockerfile）
+├── data/                 # 原始法律文本和知识文件
+├── chroma_db/            # Chroma 持久化目录
+├── chat_history/         # 会话持久化目录
+├── mcp_servers.json      # MCP Server 配置
+├── .env                  # 本地环境变量（不提交）
+├── .dockerignore
+├── .gitignore
+├── docker-compose.yml
 └── README.md
 ```
 
@@ -72,17 +71,17 @@ Embedding 检索本地知识 -> Qwen 判断是否要调用 MCP -> 取外部数�
 ### 3.1 使用 uv（推荐）
 
 ```powershell
-uv venv --python 3.11
-.\.venv\Scripts\Activate.ps1
-uv pip install -r requirements.txt
+uv venv --python 3.11 backend/.venv
+backend\.venv\Scripts\Activate.ps1
+uv pip install -r backend/requirements.txt
 ```
 
 ### 3.2 使用 pip
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
+python -m venv backend/.venv
+backend\.venv\Scripts\Activate.ps1
+pip install -r backend/requirements.txt
 ```
 
 ## 4. 环境变量
@@ -96,7 +95,7 @@ ANONYMIZED_TELEMETRY=False
 MCP_SERVER_CONFIG_PATH=./mcp_servers.json
 ```
 
-如果你不想用环境变量，也可以直接把 `mcp_servers.example.json` 复制为 `mcp_servers.json`，程序会自动读取项目根目录下的 `mcp_servers.json`。
+MCP 配置可由 `MCP_SERVER_CONFIG_PATH` 指定；未指定时程序默认读取项目根目录的 `mcp_servers.json`。
 
 ## 5. MCP 外部工具配置
 
@@ -113,6 +112,7 @@ MCP 用于把外部能力接进来，例如网页搜索、MySQL、企业信息�
       "name": "web-search",
       "command": "python",
       "args": ["servers/web_search_mcp.py"],
+      "cwd": "backend",
       "env": {
         "SEARCH_API_KEY": "replace-me"
       },
@@ -141,30 +141,61 @@ MCP 用于把外部能力接进来，例如网页搜索、MySQL、企业信息�
 
 ## 6. 启动方式
 
-在项目根目录执行。
+### 6.1 启动 FastAPI 后端
 
-### 6.1 启动上传页面（先入库）
+在仓库根目录创建 `.env` 并配置 `DASHSCOPE_API_KEY`。在仓库根目录创建/激活 `backend/.venv` 后安装依赖，然后从 `backend/` 启动：
 
-```powershell
-uv run streamlit run app/streamlit_upload.py
+```bash
+python -m venv backend/.venv
+source backend/.venv/bin/activate
+pip install -r backend/requirements.txt
+cd backend
+uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 6.2 启动聊天页面
+PowerShell 激活命令为 `backend\.venv\Scripts\Activate.ps1`。接口包括 `GET /health`、`GET /sessions`、`POST /chat`（SSE）和 `POST /upload`（UTF-8 TXT）。应用启动时初始化一次 `RagService` 和 `KnowledgeBaseService`。可用 `CORS_ORIGINS` 配置允许的前端源。
 
-```powershell
-uv run streamlit run app/streamlit_chat.py
+### 6.2 启动 Vue3 前端
+
+另开终端：
+
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
-如果虚拟环境已激活，可简写：
+访问 `http://localhost:5173`。开发服务器默认请求 `http://localhost:8000`；其他后端地址可通过 `VITE_API_BASE_URL` 配置。
 
-```powershell
+### 6.3 启动保留的 Streamlit Demo
+
+在仓库根目录激活 `backend/.venv` 后：
+
+```bash
+cd backend
 streamlit run app/streamlit_upload.py
+# 或
 streamlit run app/streamlit_chat.py
+```
+
+### 6.4 Docker Compose
+
+在仓库根目录准备 `.env`（至少包含 `DASHSCOPE_API_KEY`），然后运行：
+
+```bash
+docker compose up --build -d
+docker compose logs -f backend
+```
+
+Vue 页面访问 `http://localhost:8080`，API 健康检查访问 `http://localhost:8000/health`。后端镜像从 `./backend` 构建，前端镜像从 `./frontend` 构建；Compose 将根目录的 `data/`、`chroma_db/`、`chat_history/` 和 `mcp_servers.json` 挂载给后端。关闭服务：
+
+```bash
+docker compose down
 ```
 
 ## 7. 关键配置说明
 
-配置文件：`core/config.py`
+配置文件：`backend/core/config.py`
 
 ### 7.1 检索相关
 
@@ -185,7 +216,7 @@ streamlit run app/streamlit_chat.py
 
 ## 8. 记忆压缩策略（当前实现）
 
-在 `memory/history_store.py` 中执行：
+在 `backend/memory/history_store.py` 中执行：
 
 1. 识别内部摘要消息与普通对话消息。
 2. 普通消息按用户发言切分轮次。
@@ -201,12 +232,14 @@ streamlit run app/streamlit_chat.py
 ### 9.1 单元测试
 
 ```powershell
+cd backend
 python -m unittest discover -s test -p "test_memory_compression.py" -v
 ```
 
 ### 9.2 行为演示（打印压缩行为）
 
 ```powershell
+cd backend
 python test/validate_memory_compression.py
 ```
 

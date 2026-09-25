@@ -6,6 +6,9 @@ __pycache__/
 .venv/
 env/
 venv/
+node_modules/
+frontend/dist/
+*.log
 
 # 环境配置（含密钥）
 .env

@@ -34,6 +34,12 @@ class MCPServerSpec:
 
         cwd = raw.get("cwd") or None
         transport = str(raw.get("transport") or "stdio").strip().lower()
+        if cwd:
+            cwd_path = Path(str(cwd)).expanduser()
+            if not cwd_path.is_absolute():
+                project_root = Path(__file__).resolve().parents[2]
+                cwd_path = project_root / cwd_path
+            cwd = str(cwd_path)
 
         return cls(
             name=name,
@@ -64,10 +70,11 @@ def _load_json_from_path(path_text: str) -> Any:
 
 
 def _default_config_candidates() -> list[Path]:
-    base_dir = Path(__file__).resolve().parent.parent
+    backend_dir = Path(__file__).resolve().parents[1]
+    project_root = backend_dir.parent
     return [
-        base_dir / "mcp_servers.json",
-        base_dir / "config" / "mcp_servers.json",
+        project_root / "mcp_servers.json",
+        backend_dir / "config" / "mcp_servers.json",
     ]
 
 
@@ -77,8 +84,13 @@ def _load_server_spec_items() -> list[dict[str, Any]]:
 
     raw: Any = None
     if config_path:
+        configured_path = Path(config_path).expanduser()
+        if not configured_path.is_absolute():
+            project_root = Path(__file__).resolve().parents[2]
+            project_relative = project_root / configured_path
+            configured_path = project_relative if project_relative.exists() else configured_path
         try:
-            raw = _load_json_from_path(config_path)
+            raw = _load_json_from_path(str(configured_path))
         except (OSError, json.JSONDecodeError):
             return []
     elif config_json:

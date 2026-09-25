@@ -2,10 +2,11 @@
   "servers": [
     {
       "name": "web-search",
-      "command": ".venv/bin/python",
+      "command": "python",
       "args": [
         "servers/web_search_mcp.py"
       ],
+      "cwd": "backend",
       "transport": "stdio"
     }
   ]

@@ -1,16 +1,19 @@
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+load_dotenv(PROJECT_ROOT / ".env")
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+BASE_DIR = str(PROJECT_ROOT)
+data_directory = str(PROJECT_ROOT / "data")
 
-md5_path = os.path.join(BASE_DIR, "md5.text")
+md5_path = str(PROJECT_ROOT / "md5.text")
 
 # Chroma
 collection_name = "rag"
-persist_directory = os.path.join(BASE_DIR, "chroma_db")
-chat_history_directory = os.path.join(BASE_DIR, "chat_history")
+persist_directory = str(PROJECT_ROOT / "chroma_db")
+chat_history_directory = str(PROJECT_ROOT / "chat_history")
 
 # Spliter
 chunk_size = 600

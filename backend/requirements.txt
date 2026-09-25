@@ -1,9 +1,10 @@
 # ===================== 核心必装依赖（项目运行必须） =====================
 # WEB界面核心：Streamlit（含聊天UI、文件上传、会话状态组件）
 streamlit>=1.35.0,<1.40.0
-# Streamlit文件上传功能配套依赖
+# Vue3 前端对应的 FastAPI API 服务
+fastapi>=0.115.0,<1.0.0
+uvicorn[standard]>=0.30.0,<1.0.0
 python-multipart>=0.0.9
-
 # ===================== RAG核心框架：LangChain全量兼容包 =====================
 # LangChain主框架
 langchain>=1.0.0,<2.0.0
