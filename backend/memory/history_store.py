@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from pathlib import Path
 from typing import Any
 from typing import Sequence
@@ -294,6 +295,7 @@ class FileChatMessageHistory(BaseChatMessageHistory):
         serialized = [message_to_dict(message) for message in compressed_messages]
         with open(self.file_path, "w", encoding="utf-8") as f:
             json.dump(serialized, f)
+        _touch_session_updated_at(self.session_id)
 
     @property
     def messages(self) -> list[BaseMessage]:
@@ -348,6 +350,78 @@ def _save_meta(meta: dict[str, Any]) -> None:
     with open(_meta_file(), "w", encoding="utf-8") as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
 
+
+def get_session_metadata(session_id: str) -> dict[str, Any]:
+    """Return persisted presentation metadata for one chat session."""
+    return dict(_load_meta().get(session_id, {}))
+
+
+def get_session_updated_at(session_id: str) -> float:
+    """Get a session timestamp, falling back to the history file mtime."""
+    metadata = get_session_metadata(session_id)
+    try:
+        if metadata.get("updated_at") is not None:
+            return float(metadata["updated_at"])
+    except (TypeError, ValueError):
+        pass
+    path = _history_dir() / session_id
+    return path.stat().st_mtime if path.exists() else 0.0
+
+
+def _touch_session_updated_at(session_id: str) -> None:
+    metadata = _load_meta()
+    session = metadata.setdefault(session_id, {})
+    session["updated_at"] = time.time()
+    _save_meta(metadata)
+
+
+def set_session_title(session_id: str, title: str, *, manual: bool = True) -> dict[str, Any]:
+    """Persist a title. Manual titles are protected from later auto-title updates."""
+    metadata = _load_meta()
+    session = metadata.setdefault(session_id, {})
+    session["title"] = title.strip()
+    if manual:
+        session["manual_title"] = True
+    _save_meta(metadata)
+    return dict(session)
+
+
+def set_auto_session_title(session_id: str, title: str) -> dict[str, Any]:
+    """Set the initial title once, unless a user has already renamed the session."""
+    metadata = _load_meta()
+    session = metadata.setdefault(session_id, {})
+    if not session.get("manual_title") and not session.get("title"):
+        session["title"] = title.strip()
+        _save_meta(metadata)
+    return dict(session)
+
+
+def save_history_messages(
+    session_id: str,
+    messages: list[BaseMessage],
+    *,
+    compress: bool = False,
+    touch: bool = False,
+) -> None:
+    """Persist a prepared message sequence, optionally using the normal memory compressor."""
+    stored_messages = _compress_messages(messages) if compress else messages
+    file_path = _history_dir() / session_id
+    serialized = [message_to_dict(message) for message in stored_messages]
+    with open(file_path, "w", encoding="utf-8") as f:
+        json.dump(serialized, f)
+    if touch:
+        _touch_session_updated_at(session_id)
+
+
+def replace_history_message(session_id: str, index: int, content: str) -> None:
+    """Replace a persisted message and save through the existing memory compressor."""
+    history = get_history(session_id)
+    messages = list(history.messages)
+    if index < 0 or index >= len(messages) or messages[index].type != "ai":
+        raise IndexError("目标助手消息不存在")
+    messages[index] = messages[index].model_copy(update={"content": content})
+    save_history_messages(session_id, messages, compress=True, touch=True)
+
 # 列出全部会话 ID，并按置顶、更新时间、字母序排序
 def list_session_ids() -> list[str]:
     """列出全部会话 ID，并按置顶、更新时间、字母序排序。"""
@@ -363,11 +437,9 @@ def list_session_ids() -> list[str]:
         """构造排序键：置顶优先，其次最近修改时间，再按 ID。"""
         # pinned: 当前会话是否置顶。
         pinned = bool(meta.get(session_id, {}).get("pinned", False))
-        # file_path: 会话文件路径。
-        file_path = directory / session_id
-        # mtime: 文件最后修改时间戳。
-        mtime = file_path.stat().st_mtime if file_path.exists() else 0
-        return (0 if pinned else 1, -mtime, session_id.lower())
+        # updated_at: 优先使用持久化更新时间；旧会话使用文件 mtime 兼容。
+        updated_at = get_session_updated_at(session_id)
+        return (0 if pinned else 1, -updated_at, session_id.lower())
 
     return sorted(sessions, key=sort_key)
 

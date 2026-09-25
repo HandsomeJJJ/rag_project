@@ -94,6 +94,29 @@ textarea {
   font-size: 18px;
   vertical-align: -1px;
 }
+.session-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 15px;
+  padding: 8px 10px;
+  border: 1px solid #a9d4af;
+  border-radius: 9px;
+  background: #d6edda;
+  color: #58725d;
+}
+.session-search span { font-size: 18px; line-height: 1; }
+.session-search input {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #294631;
+  font-size: 14px;
+}
+.session-search input::placeholder { color: #637c68; }
 .list-title {
   padding: 27px 10px 9px;
   color: #637b67;
@@ -108,13 +131,13 @@ textarea {
   overflow: auto;
 }
 
-.session {
+.session-entry {
+  position: relative;
   display: flex;
   width: 100%;
   align-items: center;
   gap: 10px;
   padding: 10px;
-  border: 0;
   border-radius: 8px;
   background: transparent;
   color: #425d48;
@@ -122,21 +145,81 @@ textarea {
   text-align: left;
 }
 
-.session:hover,
-.session.active {
+.session-entry:hover,
+.session-entry.active {
   background: #d0edd3;
   color: #214539;
 }
+.session-entry.active { font-weight: 600; }
 .session-mark {
+  flex: 0 0 auto;
   color: #69816e;
   font-size: 15px;
 }
 .session-name {
   overflow: hidden;
+  min-width: 0;
+  flex: 1;
   font-size: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.session-rename-input {
+  width: 100%;
+  min-width: 0;
+  flex: 1;
+  padding: 4px 6px;
+  border: 1px solid #7eae86;
+  border-radius: 5px;
+  outline: 0;
+  background: #f3fbf4;
+  color: #263d2c;
+  font-size: 14px;
+}
+.session-menu-trigger {
+  width: 26px;
+  height: 25px;
+  flex: 0 0 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #49694f;
+  cursor: pointer;
+  font-size: 18px;
+  letter-spacing: 1px;
+  line-height: 1;
+  opacity: 0;
+}
+.session-entry:hover .session-menu-trigger,
+.session-menu-trigger:focus-visible { opacity: 1; }
+.session-menu {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% - 2px);
+  right: 5px;
+  display: flex;
+  width: 150px;
+  flex-direction: column;
+  padding: 5px;
+  border: 1px solid #c8d8c9;
+  border-radius: 10px;
+  background: #f7fbf7;
+  box-shadow: 0 8px 22px #253c2b24;
+}
+.session-menu button {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #344b39;
+  cursor: pointer;
+  font-size: 14px;
+  text-align: left;
+}
+.session-menu button:hover { background: #e5f2e7; }
+.session-menu button.danger-action { color: #b63838; }
+.session-menu button.danger-action:hover { background: #fde8e6; }
 .empty-list {
   padding: 12px 10px;
   color: #667d6b;
@@ -154,8 +237,8 @@ textarea {
 .status-dot,
 .model-badge i {
   display: inline-block;
-  width: 7px;
-  height: 7px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   background: #70a887;
 }
@@ -196,8 +279,8 @@ textarea {
   font-size: 14px;
 }
 .model-badge i {
-  width: 6px;
-  height: 6px;
+  width: 10px;
+  height: 10px;
 }
 
 .conversation-shell {
@@ -338,6 +421,21 @@ textarea {
   text-align: left;
   white-space: pre-wrap;
 }
+.message-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.message-actions button {
+  padding: 5px 9px;
+  border: 1px solid #a9d4af;
+  border-radius: 7px;
+  background: #d9f0dc;
+  color: #3f6547;
+  cursor: pointer;
+  font-size: 14px;
+}
+.message-actions button:hover { background: #c9e8ce; }
 
 .markdown-body {
   overflow-wrap: anywhere;
@@ -465,6 +563,13 @@ textarea {
   background: #8fac93;
   cursor: default;
 }
+.send-btn.stop-btn {
+  width: auto;
+  min-width: 58px;
+  padding: 0 10px;
+  background: #bd4c4c;
+  font-size: 14px;
+}
 .disclaimer {
   padding-top: 10px;
   color: #607c65;
@@ -504,11 +609,14 @@ textarea {
     font-size: 0;
     text-align: center;
   }
+  .session-search { justify-content: center; padding: 8px 5px; }
+  .session-search input { display: none; }
+  .session-search span { font-size: 20px; }
   .new-chat span {
     margin: 0;
     font-size: 21px;
   }
-  .session {
+  .session-entry {
     justify-content: center;
     padding: 10px 4px;
   }
