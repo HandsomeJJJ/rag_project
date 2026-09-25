@@ -16,8 +16,9 @@ Embedding 检索本地知识 -> Qwen 判断是否要调用 MCP -> 取外部数�
 - 调用外部 MCP 工具：可连接外部 MCP Server，从而扩展自身能力（如搜索、数据库查询）
   `backend/agent/mcp_client.py::MCPClientManager.from_environment` / `list_tools` / `call_tool`，
   `backend/agent/tool_executor.py::build_mcp_tool`
-- 会话管理：会话列表、新建、置顶、删除、持久化历史。
-  `backend/app/streamlit_chat.py::new_session_id` / `load_messages_from_history` / `_consume_query_action`，`backend/memory/history_store.py::list_session_ids` / `toggle_session_pinned` / `delete_history`
+- 会话管理：Vue 聊天页支持新建、切换、搜索、重命名、置顶和删除会话；标题、置顶状态与对话历史持久化。首次提问生成默认标题，手动标题不会被覆盖。
+  `backend/api/main.py`，`backend/app/streamlit_chat.py::new_session_id` / `load_messages_from_history` / `_consume_query_action`，`backend/memory/history_store.py::list_session_ids` / `toggle_session_pinned` / `delete_history`
+- 消息操作：支持 SSE 流式回答、停止接收、复制 Markdown 原文和重新生成回答；原 Streamlit 页面仍可用于算法调试。
 - 记忆压缩：滑动窗口 + 摘要压缩 + Token 预算裁剪。
   `backend/memory/history_store.py::_compress_messages` / `_summarize_messages` / `FileChatMessageHistory.add_messages`
 - 可观测性：可开启压缩调试日志，直接在控制台查看压缩过程。
@@ -29,10 +30,8 @@ Embedding 检索本地知识 -> Qwen 判断是否要调用 MCP -> 取外部数�
 - 轻量摘要模型：`qwen-turbo`
 - 向量模型：`text-embedding-v4`
 
-预览：
+前端页面预览：
 本地检索成功：
-![alt text](image/演示03.png)
-本地无，则调用MCP进行网络搜索
 ![alt text](image/演示02.png)
 
 ## 2. 项目目录结构
@@ -52,7 +51,12 @@ Embedding 检索本地知识 -> Qwen 判断是否要调用 MCP -> 取外部数�
 │   ├── test/             # 测试和调试脚本
 │   ├── Dockerfile
 │   └── requirements.txt
-├── frontend/             # Vue 3 + Vite（含 Nginx Dockerfile）
+├── frontend/
+│   ├── src/              # Vue 聊天页、会话列表和 API 调用
+│   ├── package.json      # 前端依赖与 dev/build 脚本
+│   ├── vite.config.*     # Vite 配置
+│   ├── nginx.conf        # Docker 静态服务及 API 代理
+│   └── Dockerfile        # Vite 构建 + Nginx 静态托管
 ├── data/                 # 原始法律文本和知识文件
 ├── chroma_db/            # Chroma 持久化目录
 ├── chat_history/         # 会话持久化目录
@@ -66,7 +70,7 @@ Embedding 检索本地知识 -> Qwen 判断是否要调用 MCP -> 取外部数�
 
 ## 3. 环境准备
 
-建议 Python 3.10 或 3.11。
+建议 Python 3.10 或 3.11，前端需要 Node.js 18 或更新版本及 npm。以下命令均从项目根目录执行；Windows 示例使用 PowerShell，macOS/Linux 示例使用 bash/zsh。
 
 ### 3.1 使用 uv（推荐）
 
@@ -76,12 +80,28 @@ backend\.venv\Scripts\Activate.ps1
 uv pip install -r backend/requirements.txt
 ```
 
+macOS/Linux：
+
+```bash
+uv venv --python 3.11 backend/.venv
+source backend/.venv/bin/activate
+uv pip install -r backend/requirements.txt
+```
+
 ### 3.2 使用 pip
 
 ```powershell
 python -m venv backend/.venv
 backend\.venv\Scripts\Activate.ps1
 pip install -r backend/requirements.txt
+```
+
+macOS/Linux：
+
+```bash
+python3 -m venv backend/.venv
+source backend/.venv/bin/activate
+python -m pip install -r backend/requirements.txt
 ```
 
 ## 4. 环境变量
@@ -96,6 +116,7 @@ MCP_SERVER_CONFIG_PATH=./mcp_servers.json
 ```
 
 MCP 配置可由 `MCP_SERVER_CONFIG_PATH` 指定；未指定时程序默认读取项目根目录的 `mcp_servers.json`。
+请勿将真实密钥提交到 Git。MCP Server 若需要额外密钥，可放在该 Server 配置的 `env` 字段中。
 
 ## 5. MCP 外部工具配置
 
@@ -143,17 +164,17 @@ MCP 用于把外部能力接进来，例如网页搜索、MySQL、企业信息�
 
 ### 6.1 启动 FastAPI 后端
 
-在仓库根目录创建 `.env` 并配置 `DASHSCOPE_API_KEY`。在仓库根目录创建/激活 `backend/.venv` 后安装依赖，然后从 `backend/` 启动：
+先按第 3 节创建并安装 `backend/.venv`，在项目根目录准备 `.env` 并配置 `DASHSCOPE_API_KEY`。之后在项目根目录执行：
 
 ```bash
-python -m venv backend/.venv
 source backend/.venv/bin/activate
-pip install -r backend/requirements.txt
 cd backend
 uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-PowerShell 激活命令为 `backend\.venv\Scripts\Activate.ps1`。接口包括 `GET /health`、`GET /sessions`、`POST /chat`（SSE）和 `POST /upload`（UTF-8 TXT）。应用启动时初始化一次 `RagService` 和 `KnowledgeBaseService`。可用 `CORS_ORIGINS` 配置允许的前端源。
+PowerShell 可从项目根目录运行 `backend\.venv\Scripts\Activate.ps1`，然后执行 `cd backend` 和上述 `uvicorn` 命令。启动后可访问 `http://localhost:8000/docs` 查看接口文档、访问 `http://localhost:8000/health` 检查服务。
+
+主要接口：`GET /health`、`GET /sessions`、`PATCH /sessions/{session_id}`、`DELETE /sessions/{session_id}`、`POST /sessions/{session_id}/pin`、`POST /chat`（SSE 流式响应）和 `POST /upload`（UTF-8 TXT）。`/chat` 支持通过 `regenerate_message_index` 请求重新生成并替换对应回答。应用启动时初始化一次 `RagService` 和 `KnowledgeBaseService`。可用 `CORS_ORIGINS` 配置允许的前端源。
 
 ### 6.2 启动 Vue3 前端
 
@@ -166,6 +187,7 @@ npm run dev
 ```
 
 访问 `http://localhost:5173`。开发服务器默认请求 `http://localhost:8000`；其他后端地址可通过 `VITE_API_BASE_URL` 配置。
+首次安装依赖后可用 `npm run build` 检查并生成生产静态文件；开发联调时确保 FastAPI 已在 8000 端口启动。
 
 ### 6.3 启动保留的 Streamlit Demo
 
@@ -187,7 +209,7 @@ docker compose up --build -d
 docker compose logs -f backend
 ```
 
-Vue 页面访问 `http://localhost:8080`，API 健康检查访问 `http://localhost:8000/health`。后端镜像从 `./backend` 构建，前端镜像从 `./frontend` 构建；Compose 将根目录的 `data/`、`chroma_db/`、`chat_history/` 和 `mcp_servers.json` 挂载给后端。关闭服务：
+Vue 页面访问 `http://localhost:8080`，API 健康检查访问 `http://localhost:8000/health`。后端镜像从 `./backend` 构建，前端镜像从 `./frontend` 构建；Compose 将根目录的 `data/`、`chroma_db/`、`chat_history/`、`mcp_servers.json` 及 `md5.text` 挂载给后端。前端 Nginx 将 `/api` 请求转发到后端。查看前端和后端日志可分别运行 `docker compose logs -f frontend` 与 `docker compose logs -f backend`。关闭服务：
 
 ```bash
 docker compose down
