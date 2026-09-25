@@ -31,7 +31,6 @@ Embedding 检索本地知识 -> Qwen 判断是否要调用 MCP -> 取外部数�
 - 向量模型：`text-embedding-v4`
 
 前端页面预览：
-本地检索成功：
 ![alt text](image/演示02.png)
 
 ## 2. 项目目录结构
