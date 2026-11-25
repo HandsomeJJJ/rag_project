@@ -1,6 +1,4 @@
 # ===================== 核心必装依赖（项目运行必须） =====================
-# WEB界面核心：Streamlit（含聊天UI、文件上传、会话状态组件）
-streamlit>=1.35.0,<1.40.0
 # Vue3 前端对应的 FastAPI API 服务
 fastapi>=0.115.0,<1.0.0
 uvicorn[standard]>=0.30.0,<1.0.0
@@ -16,6 +14,8 @@ langchain-community>=0.4.0,<0.5.0
 langchain-chroma>=1.0.0,<2.0.0
 # LangChain文本分割器独立包（RecursiveCharacterTextSplitter依赖）
 langchain-text-splitters>=1.0.0,<2.0.0
+# OpenAI 兼容协议客户端（用于 DashScope / 阿里云 MaaS 兼容模式）
+langchain-openai>=1.0.0,<2.0.0
 # MCP 客户端 SDK（用于连接外部 MCP Server）
 mcp>=1.0.0,<2.0.0
 

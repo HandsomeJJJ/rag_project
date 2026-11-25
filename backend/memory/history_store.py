@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -14,10 +15,17 @@ from langchain_core.messages import (
     message_to_dict,
     messages_from_dict,
 )
-from langchain_community.chat_models.tongyi import ChatTongyi
-from langchain.chat_models import init_chat_model
 
 from core import config
+from infra.model_factory import build_chat_model
+
+
+def _write_json_atomic(path: Path, data: Any, *, indent: int | None = None) -> None:
+    """先写临时文件再替换，避免并发读取到半截 JSON。"""
+    temp_path = path.with_name(f".{path.name}.tmp")
+    with open(temp_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=indent)
+    os.replace(temp_path, path)
 
 
 def _debug_log(message: str) -> None:
@@ -27,17 +35,8 @@ def _debug_log(message: str) -> None:
 
 
 def _build_light_model():
-    """构建轻量模型实例，专用于内部摘要任务，失败时自动回退。"""
-    try:
-        # model: 实际调用的轻量模型名称，例如 qwen-turbo。
-        model = config.light_model_name
-        return init_chat_model(
-            model=model,
-            model_provider="tongyi",
-        )
-    except Exception:
-        # 回退策略：保持历史兼容（老方法初始化），避免因为新版初始化失败导致主链路不可用。
-        return ChatTongyi(model=config.light_model_name)
+    """构建轻量模型实例，专用于内部摘要任务。"""
+    return build_chat_model(config.light_model_name)
 
 
 def _estimate_message_tokens(message: BaseMessage) -> int:
@@ -268,10 +267,12 @@ def _compress_messages(all_messages: list[BaseMessage]) -> list[BaseMessage]:
 class FileChatMessageHistory(BaseChatMessageHistory):
     """基于本地 JSON 文件的会话历史实现，并内置压缩策略。"""
 
-    def __init__(self, session_id: str, storage_path: str):
+    def __init__(self, session_id: str, storage_path: str, user_id: str = "default"):
         """初始化单会话历史存储对象。"""
         # session_id: 会话唯一标识，用于生成会话文件名。
         self.session_id = session_id
+        # user_id: 用户标识，用于更新对应会话的元数据。
+        self.user_id = user_id
         # storage_path: 历史文件目录，例如 chat_history 目录。
         self.storage_path = storage_path
         # file_path: 当前会话对应的具体文件路径。
@@ -293,9 +294,9 @@ class FileChatMessageHistory(BaseChatMessageHistory):
         compressed_messages = _compress_messages(all_messages)
         # serialized: LangChain 标准消息字典格式，便于后续反序列化。
         serialized = [message_to_dict(message) for message in compressed_messages]
-        with open(self.file_path, "w", encoding="utf-8") as f:
-            json.dump(serialized, f)
-        _touch_session_updated_at(self.session_id)
+        _write_json_atomic(Path(self.file_path), serialized)
+        visible_count = sum(1 for message in compressed_messages if message.type in {"human", "ai"})
+        _touch_session_updated_at(self.session_id, self.user_id, message_count=visible_count)
 
     @property
     def messages(self) -> list[BaseMessage]:
@@ -314,26 +315,35 @@ class FileChatMessageHistory(BaseChatMessageHistory):
             json.dump([], f)
 
 # 调用历史记录接口
-def get_history(session_id: str):
-    """按会话 ID 获取历史对象。"""
-    return FileChatMessageHistory(session_id, config.chat_history_directory)
+def get_history(session_id: str, user_id: str = "default"):
+    """按会话 ID 与用户 ID 获取历史对象。"""
+    return FileChatMessageHistory(session_id, str(_history_dir(user_id)), user_id)
 
-# 获取历史目录路径，不存在则自动创建
-def _history_dir() -> Path:
-    """获取历史目录路径，不存在则自动创建。"""
-    path = Path(config.chat_history_directory)
+
+def _safe_user_id(user_id: str) -> str:
+    """限定用户目录名，避免路径穿越。"""
+    text = str(user_id or "").strip()
+    if re.fullmatch(r"[A-Za-z0-9_-]{1,64}", text):
+        return text
+    return "default"
+
+
+# 获取用户历史目录路径，不存在则自动创建
+def _history_dir(user_id: str = "default") -> Path:
+    """获取当前用户的历史目录路径，不存在则自动创建。"""
+    path = Path(config.chat_history_directory) / _safe_user_id(user_id)
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 # 返回会话元数据文件路径
-def _meta_file() -> Path:
-    """返回会话元数据文件路径。"""
-    return _history_dir() / ".session_meta.json"
+def _meta_file(user_id: str = "default") -> Path:
+    """返回当前用户的会话元数据文件路径。"""
+    return _history_dir(user_id) / ".session_meta.json"
 
 # 加载会话元数据，异常时返回空字典
-def _load_meta() -> dict[str, Any]:
+def _load_meta(user_id: str = "default") -> dict[str, Any]:
     """加载会话元数据，异常时返回空字典。"""
-    file_path = _meta_file()
+    file_path = _meta_file(user_id)
     if not file_path.exists():
         return {}
     try:
@@ -345,55 +355,73 @@ def _load_meta() -> dict[str, Any]:
         return {}
 
 # 保存会话元数据到磁盘
-def _save_meta(meta: dict[str, Any]) -> None:
+def _save_meta(meta: dict[str, Any], user_id: str = "default") -> None:
     """保存会话元数据到磁盘。"""
-    with open(_meta_file(), "w", encoding="utf-8") as f:
-        json.dump(meta, f, ensure_ascii=False, indent=2)
+    _write_json_atomic(_meta_file(user_id), meta, indent=2)
 
 
-def get_session_metadata(session_id: str) -> dict[str, Any]:
+def get_session_metadata(session_id: str, user_id: str = "default") -> dict[str, Any]:
     """Return persisted presentation metadata for one chat session."""
-    return dict(_load_meta().get(session_id, {}))
+    return dict(_load_meta(user_id).get(session_id, {}))
 
 
-def get_session_updated_at(session_id: str) -> float:
+def get_session_updated_at(session_id: str, user_id: str = "default") -> float:
     """Get a session timestamp, falling back to the history file mtime."""
-    metadata = get_session_metadata(session_id)
+    metadata = get_session_metadata(session_id, user_id)
     try:
         if metadata.get("updated_at") is not None:
             return float(metadata["updated_at"])
     except (TypeError, ValueError):
         pass
-    path = _history_dir() / session_id
+    path = _history_dir(user_id) / session_id
     return path.stat().st_mtime if path.exists() else 0.0
 
 
-def _touch_session_updated_at(session_id: str) -> None:
-    metadata = _load_meta()
+def _touch_session_updated_at(
+    session_id: str,
+    user_id: str = "default",
+    message_count: int | None = None,
+) -> None:
+    metadata = _load_meta(user_id)
     session = metadata.setdefault(session_id, {})
     session["updated_at"] = time.time()
-    _save_meta(metadata)
+    if message_count is not None:
+        session["message_count"] = int(message_count)
+    _save_meta(metadata, user_id)
 
 
-def set_session_title(session_id: str, title: str, *, manual: bool = True) -> dict[str, Any]:
+def set_session_title(session_id: str, title: str, *, manual: bool = True, user_id: str = "default") -> dict[str, Any]:
     """Persist a title. Manual titles are protected from later auto-title updates."""
-    metadata = _load_meta()
+    metadata = _load_meta(user_id)
     session = metadata.setdefault(session_id, {})
     session["title"] = title.strip()
     if manual:
         session["manual_title"] = True
-    _save_meta(metadata)
+    _save_meta(metadata, user_id)
     return dict(session)
 
 
-def set_auto_session_title(session_id: str, title: str) -> dict[str, Any]:
+def set_auto_session_title(session_id: str, title: str, user_id: str = "default") -> dict[str, Any]:
     """Set the initial title once, unless a user has already renamed the session."""
-    metadata = _load_meta()
+    metadata = _load_meta(user_id)
     session = metadata.setdefault(session_id, {})
     if not session.get("manual_title") and not session.get("title"):
         session["title"] = title.strip()
-        _save_meta(metadata)
+        _save_meta(metadata, user_id)
     return dict(session)
+
+
+def get_session_source_filter(session_id: str, user_id: str = "default") -> str:
+    """返回会话级检索范围（source 文件名，空字符串表示全部）。"""
+    return str(get_session_metadata(session_id, user_id).get("source_filter") or "")
+
+
+def set_session_source_filter(session_id: str, source_filter: str, user_id: str = "default") -> None:
+    """持久化会话级检索范围。"""
+    metadata = _load_meta(user_id)
+    session = metadata.setdefault(session_id, {})
+    session["source_filter"] = str(source_filter or "").strip()
+    _save_meta(metadata, user_id)
 
 
 def save_history_messages(
@@ -402,31 +430,46 @@ def save_history_messages(
     *,
     compress: bool = False,
     touch: bool = False,
+    user_id: str = "default",
 ) -> None:
     """Persist a prepared message sequence, optionally using the normal memory compressor."""
     stored_messages = _compress_messages(messages) if compress else messages
-    file_path = _history_dir() / session_id
+    file_path = _history_dir(user_id) / session_id
     serialized = [message_to_dict(message) for message in stored_messages]
-    with open(file_path, "w", encoding="utf-8") as f:
-        json.dump(serialized, f)
+    _write_json_atomic(file_path, serialized)
     if touch:
-        _touch_session_updated_at(session_id)
+        visible_count = sum(1 for message in stored_messages if message.type in {"human", "ai"})
+        _touch_session_updated_at(session_id, user_id, message_count=visible_count)
 
 
-def replace_history_message(session_id: str, index: int, content: str) -> None:
+def replace_history_message(
+    session_id: str,
+    index: int,
+    content: str,
+    *,
+    sources: list[dict[str, Any]] | None = None,
+    citation_warning: str = "",
+    user_id: str = "default",
+) -> None:
     """Replace a persisted message and save through the existing memory compressor."""
-    history = get_history(session_id)
+    history = get_history(session_id, user_id)
     messages = list(history.messages)
     if index < 0 or index >= len(messages) or messages[index].type != "ai":
         raise IndexError("目标助手消息不存在")
-    messages[index] = messages[index].model_copy(update={"content": content})
-    save_history_messages(session_id, messages, compress=True, touch=True)
+    additional_kwargs = dict(messages[index].additional_kwargs or {})
+    if sources is not None:
+        additional_kwargs["sources"] = sources
+    additional_kwargs["citation_warning"] = citation_warning
+    messages[index] = messages[index].model_copy(
+        update={"content": content, "additional_kwargs": additional_kwargs}
+    )
+    save_history_messages(session_id, messages, compress=True, touch=True, user_id=user_id)
 
 # 列出全部会话 ID，并按置顶、更新时间、字母序排序
-def list_session_ids() -> list[str]:
-    """列出全部会话 ID，并按置顶、更新时间、字母序排序。"""
-    directory = _history_dir()
-    meta = _load_meta()
+def list_session_ids(user_id: str = "default") -> list[str]:
+    """列出当前用户的全部会话 ID，并按置顶、更新时间、字母序排序。"""
+    directory = _history_dir(user_id)
+    meta = _load_meta(user_id)
     # sessions: 收集到的会话文件名列表。
     sessions: list[str] = []
     for file in directory.iterdir():
@@ -438,42 +481,76 @@ def list_session_ids() -> list[str]:
         # pinned: 当前会话是否置顶。
         pinned = bool(meta.get(session_id, {}).get("pinned", False))
         # updated_at: 优先使用持久化更新时间；旧会话使用文件 mtime 兼容。
-        updated_at = get_session_updated_at(session_id)
+        updated_at = get_session_updated_at(session_id, user_id)
         return (0 if pinned else 1, -updated_at, session_id.lower())
 
     return sorted(sessions, key=sort_key)
 
 # 删除指定会话历史及其元数据
-def delete_history(session_id: str) -> None:
-    """删除指定会话历史及其元数据。"""
-    file_path = _history_dir() / session_id
+def delete_history(session_id: str, user_id: str = "default") -> None:
+    """删除当前用户的指定会话历史及其元数据。"""
+    file_path = _history_dir(user_id) / session_id
     if file_path.exists() and file_path.is_file():
         file_path.unlink()
 
-    meta = _load_meta()
+    meta = _load_meta(user_id)
     if session_id in meta:
         meta.pop(session_id, None)
-        _save_meta(meta)
+        _save_meta(meta, user_id)
 
 
-def is_session_pinned(session_id: str) -> bool:
+def is_session_pinned(session_id: str, user_id: str = "default") -> bool:
     """查询会话是否被置顶。"""
-    meta = _load_meta()
-    return bool(meta.get(session_id, {}).get("pinned", False))
+    return bool(get_session_metadata(session_id, user_id).get("pinned", False))
 
 
-def set_session_pinned(session_id: str, pinned: bool) -> None:
+def set_session_pinned(session_id: str, pinned: bool, user_id: str = "default") -> None:
     """设置会话置顶状态。"""
-    meta = _load_meta()
+    metadata = _load_meta(user_id)
     # session_meta: 指定会话的元数据字典。
-    session_meta = meta.get(session_id, {})
+    session_meta = metadata.get(session_id, {})
     session_meta["pinned"] = pinned
-    meta[session_id] = session_meta
-    _save_meta(meta)
+    metadata[session_id] = session_meta
+    _save_meta(metadata, user_id)
 
 
-def toggle_session_pinned(session_id: str) -> bool:
+def toggle_session_pinned(session_id: str, user_id: str = "default") -> bool:
     """切换会话置顶状态并返回新状态。"""
-    new_state = not is_session_pinned(session_id)
-    set_session_pinned(session_id, new_state)
+    new_state = not is_session_pinned(session_id, user_id)
+    set_session_pinned(session_id, new_state, user_id)
     return new_state
+
+
+def _migrate_legacy_sessions() -> None:
+    """把旧版本直接放在 chat_history 根目录的会话迁移到 default 用户目录。"""
+    root = Path(config.chat_history_directory)
+    if not root.exists():
+        return
+    legacy_files = [item for item in root.glob("chat_*") if item.is_file()]
+    if not legacy_files:
+        return
+    target = _history_dir("default")
+    for item in legacy_files:
+        destination = target / item.name
+        if not destination.exists():
+            try:
+                item.replace(destination)
+            except OSError:
+                # 多进程同时启动时可能被另一进程先迁移，忽略即可
+                continue
+    legacy_meta = root / ".session_meta.json"
+    if legacy_meta.exists():
+        try:
+            with open(legacy_meta, "r", encoding="utf-8") as f:
+                legacy_data = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            legacy_data = {}
+        if isinstance(legacy_data, dict) and legacy_data:
+            merged = _load_meta("default")
+            for key, value in legacy_data.items():
+                merged.setdefault(key, value)
+            _save_meta(merged, "default")
+        legacy_meta.unlink(missing_ok=True)
+
+
+_migrate_legacy_sessions()

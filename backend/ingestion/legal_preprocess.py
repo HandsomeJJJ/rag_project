@@ -26,14 +26,25 @@ def preprocess_legal_text(text: str) -> str:
 
 	normalized = text.replace("\r\n", "\n")# 统一换行符，方便后续正则处理。
 
+	# 如果文件本身直接从编/章/节/条开始，说明没有目录需要切除，避免误删第一条。
+	stripped_start = normalized.lstrip()
+	first_line = stripped_start.split("\n", 1)[0].strip() if stripped_start else ""
+	starts_with_structure = bool(
+		LINE_PART_PATTERN.match(first_line)
+		or LINE_CHAPTER_PATTERN.match(first_line)
+		or LINE_SECTION_PATTERN.match(first_line)
+		or LINE_ARTICLE_PATTERN.match(first_line)
+	)
+
 	# 优先从首个“编”标题开始，其次从首个法条开始。
-	part_start = re.search(r"\n第[一二三四五六七八九十百千零〇0-9]+编", normalized)
-	if part_start:
-		normalized = normalized[part_start.start() + 1 :]
-	else:
-		article_start = re.search(r"\n第[一二三四五六七八九十百千零〇0-9]+\s*条", normalized)
-		if article_start:
-			normalized = normalized[article_start.start() + 1 :]
+	if not starts_with_structure:
+		part_start = re.search(r"\n第[一二三四五六七八九十百千零〇0-9]+编", normalized)
+		if part_start:
+			normalized = normalized[part_start.start() + 1 :]
+		else:
+			article_start = re.search(r"\n第[一二三四五六七八九十百千零〇0-9]+\s*条", normalized)
+			if article_start:
+				normalized = normalized[article_start.start() + 1 :]
 
 	noise_patterns = [
 		r"^目\s*录\s*$",

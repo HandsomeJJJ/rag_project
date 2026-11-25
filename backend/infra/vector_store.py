@@ -19,19 +19,26 @@ class VectorStoreService:
             search_kwargs["filter"] = {"source": config.retrieval_source_filter}
         return self.vector_store.as_retriever(search_kwargs=search_kwargs)
 
-    def get_vector_docs(self, query: str, top_k: int) -> list[Document]:
+    def get_vector_docs(self, query: str, top_k: int, source_filter: str = "") -> list[Document]:
         search_kwargs = {"k": top_k}
-        if config.retrieval_source_filter:
-            search_kwargs["filter"] = {"source": config.retrieval_source_filter}
+        filter_value = source_filter or config.retrieval_source_filter
+        if filter_value:
+            search_kwargs["filter"] = {"source": filter_value}
         retriever = self.vector_store.as_retriever(search_kwargs=search_kwargs)
         return retriever.invoke(query)
 
-    def get_all_documents(self) -> list[Document]:
+    def get_all_documents(self, source_filter: str = "") -> list[Document]:
         """从当前 collection 拉取全部文档用于关键词召回。"""
         data = self.vector_store._collection.get(include=["documents", "metadatas"])  # noqa: SLF001
         documents = data.get("documents", [])
         metadatas = data.get("metadatas", [])
-        return [
+        items = [
             Document(page_content=doc or "", metadata=meta or {})
             for doc, meta in zip(documents, metadatas)
         ]
+        if source_filter:
+            items = [
+                doc for doc in items
+                if str((doc.metadata or {}).get("source", "")) == source_filter
+            ]
+        return items

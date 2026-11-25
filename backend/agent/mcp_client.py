@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from dataclasses import dataclass, field
+import sys
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -135,12 +136,24 @@ def _require_mcp_sdk():
 
 
 def _tool_schema_text(schema: dict[str, Any]) -> str:
-    if not schema:
-        return "{}"
-    try:
-        return json.dumps(schema, ensure_ascii=False, indent=2)
-    except TypeError:
-        return str(schema)
+    """把工具参数 schema 压缩成一行签名，减少提示词体积。"""
+    if not isinstance(schema, dict):
+        return ""
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return ""
+    required = set(schema.get("required") or [])
+    parts: list[str] = []
+    for name, info in properties.items():
+        info = info if isinstance(info, dict) else {}
+        type_name = str(info.get("type") or "any")
+        optional = "" if name in required else "?"
+        description = str(info.get("description") or "").strip().replace("\n", " ")
+        if len(description) > 60:
+            description = description[:60] + "…"
+        suffix = f"（{description}）" if description else ""
+        parts.append(f"{name}{optional}: {type_name}{suffix}")
+    return ", ".join(parts)
 
 
 def _stringify_tool_content(content: Any) -> str:
@@ -176,6 +189,9 @@ class MCPClientManager:
         for item in _load_server_spec_items():
             spec = MCPServerSpec.from_mapping(item)
             if spec is not None:
+                if spec.command in {"python", "python3", "py"}:
+                    # 使用当前虚拟环境的解释器，避免 Windows 上 "python" 指向应用商店别名
+                    spec = replace(spec, command=sys.executable)
                 specs.append(spec)
         return cls(specs)
 
@@ -277,8 +293,7 @@ class MCPClientManager:
 
         lines = ["可用的外部 MCP 工具："]
         for tool in tools:
-            lines.append(
-                f"- {tool.qualified_name}: {tool.description or '无描述'}\n"
-                f"  入参: {_tool_schema_text(tool.input_schema)}"
-            )
+            schema_text = _tool_schema_text(tool.input_schema)
+            description = (tool.description or "无描述").replace("\n", " ")[:200]
+            lines.append(f"- {tool.qualified_name}({schema_text}): {description}")
         return "\n".join(lines)

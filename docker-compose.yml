@@ -10,7 +10,7 @@ services:
     environment:
       PYTHONPATH: /workspace/backend
       MCP_SERVER_CONFIG_PATH: /workspace/mcp_servers.json
-      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080
     ports:
       - "8000:8000"
     volumes:
